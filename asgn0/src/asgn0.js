@@ -40,3 +40,24 @@ function drawVector(ctx, v, color) {
     ctx.stroke();
 }
 
+function handleDrawEvent() {
+    const x = parseFloat(document.getElementById("xCoord").value);
+    const y = parseFloat(document.getElementById("yCoord").value);
+
+    if (isNaN(x) || isNaN(y)) {
+        alert("Please enter valid numbers for x and y.");
+        return;
+    }
+
+    const canvas = document.getElementById("example");
+    const ctx = canvas.getContext("2d");
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // create and draw vector
+    let v = new Vector3([x, y, 0.0]);
+    drawVector(ctx, v, 'red');
+}
