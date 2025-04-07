@@ -21,8 +21,8 @@ function main() {
 }
 
 function drawVector(ctx, v, color) {
-    let x = v.element[0];
-    let y = v.element[1];
+    let x = v.elements[0];
+    let y = v.elements[1];
 
     // Scale by 20
     x *= 20;
