@@ -101,6 +101,10 @@ function handleDrawOperationEvent() {
     let v1 = new Vector3([x1, y1, 0.0]);
     let v2 = new Vector3([x2, y2, 0.0]);
 
+    // Draw original vectors
+    drawVector(ctx, v1, 'red');
+    drawVector(ctx, v2, 'blue');
+
     if (operation === 'add' || operation === 'sub') {
         const v3 = new Vector3(v1.elements);
         operation === 'add' ? v3.add(v2) : v3.sub(v2);
@@ -143,7 +147,10 @@ function handleDrawOperationEvent() {
         drawVector(ctx, v2Norm, 'green');
     } else if (operation === 'angle') {
         const angle = angleBetween(v1, v2);
-        console.log('Angle: ', angle.toFixed(2));
+        console.log('Angle: ', angle.toFixed(0));
+    } else if (operation === 'area') {
+        const area = areaTriangle(v1, v2);
+        console.log('Area of the triangle: ', area.toFixed(1))
     }
 }
 
@@ -159,4 +166,10 @@ function angleBetween(v1, v2) {
     const angleRad = Math.acos(clamped);
     const angleDeg = angleRad * (180 / Math.PI);
     return angleDeg;
+}
+
+function areaTriangle(v1, v2) {
+    const cross = Vector3.cross(v1, v2);
+    const mag = cross.magnitude();
+    return 0.5 * mag;
 }
