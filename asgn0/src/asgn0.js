@@ -12,12 +12,6 @@ function main() {
     // Set black background
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Set v1
-    let v1 = new Vector3([2.25, 2.25, 0.0]);
-
-    // Draw v1
-    drawVector(ctx, v1, 'red');
 }
 
 function drawVector(ctx, v, color) {
@@ -41,14 +35,22 @@ function drawVector(ctx, v, color) {
 }
 
 function handleDrawEvent() {
-    const x = parseFloat(document.getElementById("xCoord").value);
-    const y = parseFloat(document.getElementById("yCoord").value);
+    const x1 = parseFloat(document.getElementById("v1X").value);
+    const y1 = parseFloat(document.getElementById("v1Y").value);
 
-    if (isNaN(x) || isNaN(y)) {
-        alert("Please enter valid numbers for x and y.");
+    const x2 = parseFloat(document.getElementById("v2X").value);
+    const y2 = parseFloat(document.getElementById("v2Y").value);
+
+    if (isNaN(x1) || isNaN(y1)) {
+        alert("Please enter valid x and y for v1.");
         return;
     }
 
+    if (isNaN(x2) || isNaN(y2)) {
+        alert("Please enter valid x and y for v2.");
+        return;
+    }
+    
     const canvas = document.getElementById("example");
     const ctx = canvas.getContext("2d");
 
@@ -57,7 +59,73 @@ function handleDrawEvent() {
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // create and draw vector
-    let v = new Vector3([x, y, 0.0]);
-    drawVector(ctx, v, 'red');
+    // create and draw vectors
+    let v1 = new Vector3([x1, y1, 0.0]);
+    let v2 = new Vector3([x2, y2, 0.0]);
+    drawVector(ctx, v1, 'red');
+    drawVector(ctx, v2, 'blue');
+}
+
+function handleDrawOperationEvent() {
+    const canvas = document.getElementById("example");
+    const ctx = canvas.getContext("2d");
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Create original vectors
+    const x1 = parseFloat(document.getElementById("v1X").value);
+    const y1 = parseFloat(document.getElementById("v1Y").value);
+
+    const x2 = parseFloat(document.getElementById("v2X").value);
+    const y2 = parseFloat(document.getElementById("v2Y").value);
+
+    if (isNaN(x1) || isNaN(y1)) {
+        alert("Please enter valid x and y for v1.");
+        return;
+    }
+
+    if (isNaN(x2) || isNaN(y2)) {
+        alert("Please enter valid x and y for v2.");
+        return;
+    }
+
+    let v1 = new Vector3([x1, y1, 0.0]);
+    let v2 = new Vector3([x2, y2, 0.0]);
+
+    // Read operation and scalar
+    const operation = document.getElementById("operation").value;
+    const scalar = parseFloat(document.getElementById("scalar").value);
+
+    if (operation === 'add' || operation === 'sub') {
+        const v3 = new Vector3(v1.elements);
+        operation === 'add' ? v3.add(v2) : v3.sub(v2);
+        drawVector(ctx, v3, 'green');
+    } else if (operation === 'div') {
+        const v3 = new Vector3(v1.elements);
+        const v4 = new Vector3(v2.elements);
+        v3.div(scalar);
+        v4.div(scalar);
+        // Draw original vectors
+        drawVector(ctx, v1, 'red');
+        drawVector(ctx, v2, 'blue');
+
+        drawVector(ctx, v3, 'green');
+        drawVector(ctx, v4, 'green');
+        return;
+    } else if (operation === 'mul') {
+        const v3 = new Vector3(v1.elements);
+        const v4 = new Vector3(v2.elements);
+        v3.mul(scalar);
+        v4.mul(scalar);
+        drawVector(ctx, v3, 'green');
+        drawVector(ctx, v4, 'green');
+    } 
+
+    // Draw original vectors
+    drawVector(ctx, v1, 'red');
+    drawVector(ctx, v2, 'blue');
+
 }
