@@ -88,11 +88,9 @@ class Vector3 {
       * @return scalar
       */
     static dot(other1, other2) {
-        // Insert your code here.
-        let d = 0; // Modify this line to calculate this vector's magnitude.
-
-        // Don't delete the return statement.
-        return d;
+        return other1.elements[0] * other2.elements[0] +
+               other1.elements[1] * other2.elements[1] + 
+               other1.elements[2] * other2. elements[2];
     }
 
     /**

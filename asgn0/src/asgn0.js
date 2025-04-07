@@ -141,6 +141,22 @@ function handleDrawOperationEvent() {
         const v2Norm = new Vector3(v2.elements).normalize();
         drawVector(ctx, v1Norm, 'green');
         drawVector(ctx, v2Norm, 'green');
+    } else if (operation === 'angle') {
+        const angle = angleBetween(v1, v2);
+        console.log('Angle: ', angle.toFixed(2));
     }
+}
 
+function angleBetween(v1, v2) {
+    const dotProduct = Vector3.dot(v1, v2);
+    const mag1 = v1.magnitude();
+    const mag2 = v2.magnitude();
+
+    if (mag1 === 0 || mag2 === 0) return 0;
+
+    const cosTheta = dotProduct / (mag1 * mag2);
+    const clamped = Math.min(1, Math.max(-1, cosTheta));
+    const angleRad = Math.acos(clamped);
+    const angleDeg = angleRad * (180 / Math.PI);
+    return angleDeg;
 }
