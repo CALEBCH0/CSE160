@@ -9,6 +9,9 @@ let g_red = 1.0, g_green = 0.0, g_blue = 0.0;
 let g_size = 10;
 let g_segments = 20;
 
+let rainbowMode = false;
+let spoitMode = false;
+
 window.onload = function() {
   setupWebGL();
   connectVariablesToGLSL();
@@ -95,6 +98,9 @@ function setupUI() {
   document.getElementById('segmentSlider').oninput = () => {
     g_segments = document.getElementById('segmentSlider').value;
   };
+  document.getElementById('rainbowToggle').onchange = (e) => {
+    rainbowMode = e.target.checked;
+  };
 }
 
 function handleMouseDown(ev) {
@@ -107,7 +113,13 @@ function handleMouseMove(ev) {
 
 function click(ev) {
   const [x, y] = convertCoordinatesEventToGL(ev);
-  const color = [g_red, g_green, g_blue];
+  let color = [g_red, g_green, g_blue];
+  if (rainbowMode) color = getRainbowColor();
+  if (spoitMode) {
+    alert("Spoit picked color: red=" + g_red + ", green=" + g_green + ", blue=" + g_blue);
+    spoitMode = false;
+    return;
+  }
   let shape;
 
   if (currentShapeType === 'point') {
@@ -229,4 +241,26 @@ function drawCustomPicture() {
     renderAllShapes();
 }
 
+function getRainbowColor() {
+  const hue = Math.random();
+  const rgb = HSVtoRGB(hue, 1, 1);
+  return [rgb.r, rgb.g, rgb.b];
+}
 
+function HSVtoRGB(h, s, v) {
+  let r, g, b;
+  let i = Math.floor(h * 6);
+  let f = h * 6 - i;
+  let p = v * (1 - s);
+  let q = v * (1 - f * s);
+  let t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: r = v, g = t, b = p; break;
+    case 1: r = q, g = v, b = p; break;
+    case 2: r = p, g = v, b = t; break;
+    case 3: r = p, g = q, b = v; break;
+    case 4: r = t, g = p, b = v; break;
+    case 5: r = v, g = p, b = q; break;
+  }
+  return { r, g, b };
+}
