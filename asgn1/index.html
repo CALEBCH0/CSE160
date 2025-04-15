@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebGL Paint Program</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    canvas {
+      border: 2px solid black;
+      background-color: black;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .controls {
+      margin-top: 10px;
+    }
+
+    .controls section {
+      margin: 10px 0;
+    }
+
+    label {
+      margin: 0 10px;
+    }
+
+    input[type=range] {
+      width: 200px;
+    }
+
+    button {
+      margin: 0 5px;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebGL Paint Program</h1>
+
+  <!-- Canvas -->
+  <canvas id="webgl" width="400" height="400"></canvas>
+
+  <div class="controls">
+    <!-- TOP ACTION BUTTONS -->
+    <section>
+      <button onclick="clearCanvas()">Clear Canvas</button>
+      <button onclick="drawCustomPicture()">Draw Custom Picture</button>
+    </section>
+  
+    <!-- DRAWING MODE -->
+    <section>
+      <strong>Drawing Mode:</strong><br>
+      <button onclick="currentShapeType='point'">Squares</button>
+      <button onclick="currentShapeType='triangle'">Triangles</button>
+      <button onclick="currentShapeType='circle'">Circles</button>
+    </section>
+  
+    <!-- COLOR SLIDERS -->
+    <section>
+      <strong>Shape Color:</strong><br>
+      <label>Red <input type="range" id="redSlider" min="0" max="100" value="100"></label>
+      <label>Green <input type="range" id="greenSlider" min="0" max="100" value="0"></label>
+      <label>Blue <input type="range" id="blueSlider" min="0" max="100" value="0"></label>
+    </section>
+  
+    <!-- SIZE + SEGMENTS -->
+    <section>
+      <label>Shape Size: <input type="range" id="sizeSlider" min="1" max="50" value="20"></label>
+      <label>(Circles) Segment Count: <input type="range" id="segmentSlider" min="3" max="100" value="20"></label>
+    </section>
+  </div>  
+
+  <!-- Load Scripts -->
+  <script src="Point.js"></script>
+  <script src="Triangle.js"></script>
+  <script src="Circle.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
