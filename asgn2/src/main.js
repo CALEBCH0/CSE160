@@ -54,20 +54,6 @@ function renderScene() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
     // <---------- draw animal ----------->
-    // // body
-    // const bodyM = new Matrix4().translate(0, 0, 0).scale(0.5, 0.5, 0.5); // Create a model matrix for the body
-    // setCubeColor([0.0, 0.0, 1.0, 1.0]); // Set body color to blue
-    // drawCube(bodyM); // Draw the body
-
-    // //
-    // const joint1M = new Matrix4(bodyM).translate(-0.25, -0.5, 0.0).rotate(-g_joint1Angle, 0, 0, 1).scale(0.5, 1, 0.5); // Create a model matrix for the cube
-    // setCubeColor([1.0, 0.0, 0.0, 1.0]); // Set cube color
-    // drawCube(joint1M); // Draw the joint 1
-
-    // const joint2M = new Matrix4(joint1M).translate(1, 0, 0).rotate(45, 0, 0, 1).scale(0.5, 0.5, 0.5); // Create a model matrix for the joint 2
-    // setCubeColor([0.0, 1.0, 0.0, 1.0]); // Set color to green
-    // drawCube(joint2M); // Draw the joint 2
-
     // 1) Body (centered unit cube scaled into a “shell”)
     const bodyM = new Matrix4()
     .translate(0, 0, 0)
@@ -77,72 +63,109 @@ function renderScene() {
 
     // 2) Head (on top‐front of shell)
     const headM = new Matrix4(bodyM)
-    .translate(    0,   0.833,  0.643 )
-    .rotate(      g_headAngle, 0,1,0 )
-    .scale(      0.2,   0.2,   0.2  );
+    .translate(    0,   0.233,  -0.6 )
+    .rotate(     -g_headAngle, 0, 1, 0 )
+    .scale(      0.2,   0.5,   0.5  );
     setCubeColor([0.8, 0.6, 0.4, 1.0]);    // tan head
     drawCube(headM);
+    const pivotY = 0.5;    // top of unit‐cube in object space
 
-    // 3) Front‐Right Leg: thigh → calf
+    // ---- add two black eyes ----
+    const eyeSX = 0.2, eyeSY = 0.1, eyeSZ = 0.2;  // size of each eye
+
+    // Left eye
+    const leftEyeM = new Matrix4(headM)
+    .translate(-0.1,  0.10,  -0.25)  // move to left, up a bit, flush with front face
+    .scale(      eyeSX, eyeSY, eyeSZ);
+    setCubeColor([0, 0, 0, 1]);           // black
+    drawCube(leftEyeM);
+
+    // Right eye
+    const rightEyeM = new Matrix4(headM)
+    .translate( 0.1,  0.10,  -0.25)  // symmetric on the right
+    .scale(      eyeSX, eyeSY, eyeSZ);
+    setCubeColor([0, 0, 0, 1]);
+    drawCube(rightEyeM);
+
+    // 3) Front-Right Thigh (hinge at its top edge)
     const frThighM = new Matrix4(bodyM)
-    .translate(  0.6,  -0.833,  0.5   )
-    .rotate(     g_frontRightLegAngle, 1,0,0 )
-    .scale(     0.1,   0.2,    0.1   );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);     // dark grey
+    .translate( 0.42, -0.6, -0.3 )      // position against shell
+    .translate( 0,   pivotY, 0 )       // move hinge to origin
+    .rotate(   -g_frontRightLegAngle, 1, 0, 0 ) // hinge rotation
+    .translate( 0,  -pivotY, 0 )       // move back
+    .scale(    0.1, 0.5,    0.1 );     // size
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(frThighM);
 
+    // Front-Right Calf
     const frCalfM = new Matrix4(frThighM)
-    .translate(  0,   -0.75,   0    )
-    .rotate(     g_frontRightCalfAngle, 1,0,0 )
-    .scale(     1.0,  0.5,    1.0  );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate( 0,   -0.7, -0.1 )        // offset under thigh
+    .translate( 0,    pivotY, 0 )      // hinge at top of calf
+    .rotate(   -g_frontRightCalfAngle, 1, 0, 0 )
+    .translate( 0,   -pivotY, 0 )
+    .scale(    1.0,  1.5,    0.7 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(frCalfM);
 
-    // 4) Front‐Left Leg
+    // 4) Front-Left Thigh
     const flThighM = new Matrix4(bodyM)
-    .translate( -0.6,  -0.833,  0.5   )
-    .rotate(     g_frontLeftLegAngle, 1,0,0 )
-    .scale(     0.1,   0.2,    0.1   );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate(-0.42, -0.6, -0.3)
+    .translate( 0,     pivotY, 0 )
+    .rotate(   g_frontLeftLegAngle, 1, 0, 0 )
+    .translate( 0,    -pivotY, 0 )
+    .scale(    0.1,   0.5,    0.1 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(flThighM);
 
+    // Front-Left Calf
     const flCalfM = new Matrix4(flThighM)
-    .translate(  0,   -0.75,   0    )
-    .rotate(     g_frontLeftCalfAngle, 1,0,0 )
-    .scale(     1.0,  0.5,    1.0  );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate( 0,   -0.7,  -0.1 )
+    .translate( 0,    pivotY, 0 )
+    .rotate(   -g_frontLeftCalfAngle, 1, 0, 0 )
+    .translate( 0,   -pivotY, 0 )
+    .scale(    1.0,  1.5,    0.7 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(flCalfM);
 
-    // 5) Rear‐Right Leg
+    // 5) Rear-Right Thigh
     const rrThighM = new Matrix4(bodyM)
-    .translate(  0.6,  -0.833, -0.5   )
-    .rotate(     g_rearRightLegAngle, 1,0,0 )
-    .scale(     0.1,   0.2,    0.1   );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate( 0.42, -0.6,  0.3 )
+    .translate( 0,     pivotY, 0 )
+    .rotate(   -g_rearRightLegAngle, 1, 0, 0 )
+    .translate( 0,    -pivotY, 0 )
+    .scale(    0.1,   0.5,    0.1 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(rrThighM);
 
+    // Rear-Right Calf
     const rrCalfM = new Matrix4(rrThighM)
-    .translate(  0,   -0.75,   0    )
-    .rotate(     g_rearRightCalfAngle, 1,0,0 )
-    .scale(     1.0,  0.5,    1.0  );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate( 0,   -0.7,   0.1 )      // mirror Z offset
+    .translate( 0,    pivotY, 0 )
+    .rotate(   -g_rearRightCalfAngle, 1, 0, 0 )
+    .translate( 0,   -pivotY, 0 )
+    .scale(    1.0,  1.5,    0.7 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(rrCalfM);
 
-    // 6) Rear‐Left Leg
+    // 6) Rear-Left Thigh
     const rlThighM = new Matrix4(bodyM)
-    .translate( -0.6,  -0.833, -0.5   )
-    .rotate(     g_rearLeftLegAngle, 1,0,0 )
-    .scale(     0.1,   0.2,    0.1   );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate(-0.42, -0.6,  0.3 )
+    .translate( 0,     pivotY, 0 )
+    .rotate(   g_rearLeftLegAngle, 1, 0, 0 )
+    .translate( 0,    -pivotY, 0 )
+    .scale(    0.1,   0.5,    0.1 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(rlThighM);
 
+    // Rear-Left Calf
     const rlCalfM = new Matrix4(rlThighM)
-    .translate(  0,   -0.75,   0    )
-    .rotate(     g_rearLeftCalfAngle, 1,0,0 )
-    .scale(     1.0,  0.5,    1.0  );
-    setCubeColor([0.2, 0.2, 0.2, 1.0]);
+    .translate( 0,   -0.7,   0.1 )
+    .translate( 0,    pivotY, 0 )
+    .rotate(   -g_rearLeftCalfAngle, 1, 0, 0 )
+    .translate( 0,   -pivotY, 0 )
+    .scale(    1.0,  1.5,    0.7 );
+    setCubeColor([0.2,0.2,0.2,1]);
     drawCube(rlCalfM);
-
     // <---------- end of drawing ----------->
 
     var duration = performance.now() - startTime; // Calculate duration
@@ -235,7 +258,7 @@ function connectVariablesToGLSL() {
 
 function addActionsForHtmlUI() {
     document.getElementById('angleSlide').addEventListener('mousemove', function() {
-        g_globalAngle = this.value;
+        g_globalAngle = -this.value;
         renderScene();
     });
     // Head

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -21,43 +21,136 @@
   
     <p>
       Head Rotation  
-      <input type="range" id="headSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="headSlide" min="-90" max="90" value="0" step="1" class="slider">
     </p>
   
     <p>
       Front Right Thigh  
-      <input type="range" id="frontRightLegSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="frontRightLegSlide" min="-40" max="40" value="0" step="1" class="slider">
     </p>
     <p>
       Front Right Calf  
-      <input type="range" id="frontRightCalfSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="frontRightCalfSlide" min="-90" max="90" value="0" step="1" class="slider">
     </p>
   
     <p>
       Front Left Thigh  
-      <input type="range" id="frontLeftLegSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="frontLeftLegSlide" min="-40" max="40" value="0" step="1" class="slider">
     </p>
     <p>
       Front Left Calf  
-      <input type="range" id="frontLeftCalfSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="frontLeftCalfSlide" min="-90" max="90" value="0" step="1" class="slider">
     </p>
   
     <p>
       Rear Right Thigh  
-      <input type="range" id="rearRightLegSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="rearRightLegSlide" min="-40" max="40" value="0" step="1" class="slider">
     </p>
     <p>
       Rear Right Calf  
-      <input type="range" id="rearRightCalfSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="rearRightCalfSlide" min="-90" max="90" value="0" step="1" class="slider">
     </p>
   
     <p>
       Rear Left Thigh  
-      <input type="range" id="rearLeftLegSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="rearLeftLegSlide" min="-40" max="40" value="0" step="1" class="slider">
     </p>
     <p>
       Rear Left Calf  
-      <input type="range" id="rearLeftCalfSlide" min="0" max="360" value="0" step="1" class="slider">
+      <input type="range" id="rearLeftCalfSlide" min="-90" max="90" value="0" step="1" class="slider">
+    </p>
+  </div>
+
+  <script src="../lib/cuon-matrix-cse160.js"></script>
+  <script src="Triangle.js"></script>
+  <script src="Cube.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
+ -->
+
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Asgn 2</title>
+  <style>
+    body { margin:0; background:#fff; color:#222; font-family:sans-serif }
+    canvas { display:block; margin:20px auto; border:1px solid #444 }
+    .controls p { margin: 8px 0; }
+    .controls span.value { margin-left: 8px; font-weight: bold; }
+  </style>
+</head>
+<body onload="main()">
+  <h1 style="text-align:center">ASGN 2</h1>
+  <canvas id="webgl" width="500" height="500" style="background-color: #000;"></canvas>
+  <div class="controls">
+    <p id="numdot"> XXX </p>
+
+    <p>
+      Camera Angle
+      <input type="range" id="angleSlide" min="-180" max="180" value="0" step="1" class="slider"
+             oninput="document.getElementById('angleSlideValue').textContent=this.value">
+      <span id="angleSlideValue" class="value">0</span>°
+    </p>
+
+    <p>
+      Head Rotation
+      <input type="range" id="headSlide" min="-45" max="45" value="0" step="1" class="slider"
+             oninput="document.getElementById('headSlideValue').textContent=this.value">
+      <span id="headSlideValue" class="value">0</span>°
+    </p>
+
+    <p>
+      Front Right Thigh
+      <input type="range" id="frontRightLegSlide" min="-40" max="40" value="0" step="1" class="slider"
+             oninput="document.getElementById('frontRightLegSlideValue').textContent=this.value">
+      <span id="frontRightLegSlideValue" class="value">0</span>°
+    </p>
+    <p>
+      Front Right Calf
+      <input type="range" id="frontRightCalfSlide" min="-10" max="90" value="0" step="1" class="slider"
+             oninput="document.getElementById('frontRightCalfSlideValue').textContent=this.value">
+      <span id="frontRightCalfSlideValue" class="value">0</span>°
+    </p>
+
+    <p>
+      Front Left Thigh
+      <input type="range" id="frontLeftLegSlide" min="-40" max="40" value="0" step="1" class="slider"
+             oninput="document.getElementById('frontLeftLegSlideValue').textContent=this.value">
+      <span id="frontLeftLegSlideValue" class="value">0</span>°
+    </p>
+    <p>
+      Front Left Calf
+      <input type="range" id="frontLeftCalfSlide" min="-10" max="90" value="0" step="1" class="slider"
+             oninput="document.getElementById('frontLeftCalfSlideValue').textContent=this.value">
+      <span id="frontLeftCalfSlideValue" class="value">0</span>°
+    </p>
+
+    <p>
+      Rear Right Thigh
+      <input type="range" id="rearRightLegSlide" min="-40" max="40" value="0" step="1" class="slider"
+             oninput="document.getElementById('rearRightLegSlideValue').textContent=this.value">
+      <span id="rearRightLegSlideValue" class="value">0</span>°
+    </p>
+    <p>
+      Rear Right Calf
+      <input type="range" id="rearRightCalfSlide" min="-10" max="90" value="0" step="1" class="slider"
+             oninput="document.getElementById('rearRightCalfSlideValue').textContent=this.value">
+      <span id="rearRightCalfSlideValue" class="value">0</span>°
+    </p>
+
+    <p>
+      Rear Left Thigh
+      <input type="range" id="rearLeftLegSlide" min="-40" max="40" value="0" step="1" class="slider"
+             oninput="document.getElementById('rearLeftLegSlideValue').textContent=this.value">
+      <span id="rearLeftLegSlideValue" class="value">0</span>°
+    </p>
+    <p>
+      Rear Left Calf
+      <input type="range" id="rearLeftCalfSlide" min="-10" max="90" value="0" step="1" class="slider"
+             oninput="document.getElementById('rearLeftCalfSlideValue').textContent=this.value">
+      <span id="rearLeftCalfSlideValue" class="value">0</span>°
     </p>
   </div>
 
