@@ -97,7 +97,10 @@ function main() {
 }
 
 function tick() {
-    if (meteorFalling) meteorFall(); // Update meteor position if falling
+    if (meteorFalling) {
+        meteorFall(); // Update meteor position if falling
+        g_meteorSpeed = g_meteorSpeed * 1.002 // accelerate
+    }
     updateVisibleWalls();
     renderScene();
     requestAnimationFrame(tick);
@@ -116,7 +119,7 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
     map = Array.from({ length: rows }, () => Array(cols).fill(0));
     walls = [];
   
-    // 1️⃣ Add perimeter wall of height 4
+    // 1️ Add perimeter wall of height 4
     for (let x = 0; x < rows; x++) {
       for (let z of [0, cols - 1]) {
         for (let y = 0; y < 4; y++) {
@@ -136,7 +139,7 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
       }
     }
   
-    // 2️⃣ Random blocks inside
+    // 2 Random blocks inside
     for (let i = 0; i < numBlocks; i++) {
       let x = Math.floor(Math.random() * (rows - 2)) + 1;  // avoid edges
       let z = Math.floor(Math.random() * (cols - 2)) + 1;
@@ -281,7 +284,7 @@ function meteorFall() {
     gl.uniform1i(u_whichTexture, 0);
     const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(2, 2, 2);
     drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], 0);
-    g_meteorY -= 0.05;
+    g_meteorY -= g_meteorSpeed;
 
     if (g_meteorY <= 0.5) {
         g_meteorY = 0.5;
@@ -523,6 +526,7 @@ function handleKeydown(e) {
         case 'm':
         case 'M':
             startMeteorFall();
+            g_meteorSpeed = 0.05;
             break;
     }
     updateVisibleWalls();
