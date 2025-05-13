@@ -1,120 +1,81 @@
 class Camera {
-    constructor() {
-      this.eye = SPWAN_POS;
-      this.at = [SPWAN_POS[0], SPWAN_POS[1], SPWAN_POS[2] - 2];
-      this.up = [0, 1, 0];
-      this.speed = 0.25;
-      this.angleStep = 3; // degrees
-      this.fov = FOV_ANGLE;
+  constructor() {
+    this.fov = FOV_ANGLE;
 
-      this.viewMatrix = new Matrix4();
-      this.viewMatrix.setLookAt(
-        this.eye[0], this.eye[1], this.eye[2],
-        this.at[0], this.at[1], this.at[2],
-        this.up[0], this.up[1], this.up[2]
-      );
+    this.eye = new Vector3(SPWAN_POS);
+    this.at  = new Vector3([SPWAN_POS[0], SPWAN_POS[1], SPWAN_POS[2] - 2]);
+    this.up  = new Vector3([0, 1, 0]);
 
-      this.projectionMatrix = new Matrix4();
-      this.projectionMatrix.setPerspective(this.fov, canvas.width / canvas.height, 0.1, RENDER_DIST);
-    }
+    this.viewMatrix = new Matrix4().setLookAt(
+      ...this.eye.elements,
+      ...this.at.elements,
+      ...this.up.elements
+    );
 
-    updateViewMatrix() {
-      this.viewMatrix.setLookAt(
-        this.eye[0], this.eye[1], this.eye[2],
-        this.at[0], this.at[1], this.at[2],
-        this.up[0], this.up[1], this.up[2]
-      );
-    }
-  
-    getDirection() {
-      return [
-        this.at[0] - this.eye[0],
-        this.at[1] - this.eye[1],
-        this.at[2] - this.eye[2],
-      ];
-    }
-  
-    normalize(v) {
-      const len = Math.hypot(...v);
-      return v.map(val => val / len);
-    }
-  
-    moveForward() {
-      const d = this.normalize(this.getDirection());
-      for (let i = 0; i < 3; i++) {
-        this.eye[i] += d[i] * this.speed;
-        this.at[i] += d[i] * this.speed;
-      }
-    }
-  
-    moveBackwards() {
-      const d = this.normalize(this.getDirection());
-      for (let i = 0; i < 3; i++) {
-        this.eye[i] -= d[i] * this.speed;
-        this.at[i] -= d[i] * this.speed;
-      }
-    }
-  
-    moveRight() {
-      const d = this.normalize(this.getDirection());
-      const left = [
-        -d[2], // cross product of direction and up: right = [dz, 0, -dx]
-        0,
-        d[0]
-      ];
-      const len = Math.hypot(...left);
-      for (let i = 0; i < 3; i++) {
-        const step = (left[i] / len) * this.speed;
-        this.eye[i] += step;
-        this.at[i] += step;
-      }
-    }
-  
-    moveLeft() {
-      const d = this.normalize(this.getDirection());
-      const right = [
-        d[2], // reversed cross product of direction and up
-        0,
-        -d[0]
-      ];
-      const len = Math.hypot(...right);
-      for (let i = 0; i < 3; i++) {
-        const step = (right[i] / len) * this.speed;
-        this.eye[i] += step;
-        this.at[i] += step;
-      }
-    }
-  
-    panRight() {
-      const d = this.getDirection();
-      const r = Math.hypot(d[0], d[2]);
-      let theta = Math.atan2(d[2], d[0]); // Z as Y (XZ plane)
-      theta += this.angleStep * Math.PI / 180; // rotate CCW
-  
-      const newDir = [
-        Math.cos(theta) * r,
-        0,
-        Math.sin(theta) * r
-      ];
-      for (let i = 0; i < 3; i++) {
-        this.at[i] = this.eye[i] + newDir[i];
-      }
-    }
-  
-    panLeft() {
-      const d = this.getDirection();
-      const r = Math.hypot(d[0], d[2]);
-      let theta = Math.atan2(d[2], d[0]);
-      theta -= this.angleStep * Math.PI / 180; // rotate CW
-  
-      const newDir = [
-        Math.cos(theta) * r,
-        0,
-        Math.sin(theta) * r
-      ];
-      for (let i = 0; i < 3; i++) {
-        this.at[i] = this.eye[i] + newDir[i];
-      }
-    }
+    this.projectionMatrix = new Matrix4().setPerspective(
+      this.fov,
+      canvas.width / canvas.height,
+      0.1,
+      RENDER_DIST
+    );
+
+    this.speed = 0.25;
+    this.angleStep = 3; // degrees
   }
-  
+
+  updateViewMatrix() {
+    this.viewMatrix.setLookAt(
+      ...this.eye.elements,
+      ...this.at.elements,
+      ...this.up.elements
+    );
+  }
+
+  moveForward() {
+    const f = new Vector3().set(this.at);
+    f.sub(this.eye).normalize().mul(this.speed);
+    this.eye.add(f);
+    this.at.add(f);
+    this.updateViewMatrix();
+  }
+
+  moveBackwards() {
+    const f = new Vector3().set(this.eye);
+    f.sub(this.at).normalize().mul(this.speed);
+    this.eye.add(f);
+    this.at.add(f);
+    this.updateViewMatrix();
+  }
+
+  moveLeft() {
+    const f = new Vector3().set(this.at).sub(this.eye).normalize();
+    const s = Vector3.cross(this.up, f).normalize().mul(this.speed);
+    this.eye.add(s);
+    this.at.add(s);
+    this.updateViewMatrix();
+  }
+
+  moveRight() {
+    const f = new Vector3().set(this.at).sub(this.eye).normalize();
+    const s = Vector3.cross(f, this.up).normalize().mul(this.speed);
+    this.eye.add(s);
+    this.at.add(s);
+    this.updateViewMatrix();
+  }
+
+  panLeft() {
+    const f = new Vector3().set(this.at).sub(this.eye);
+    const rot = new Matrix4().setRotate(this.angleStep, ...this.up.elements);
+    const f_prime = rot.multiplyVector3(f);
+    this.at = new Vector3().set(this.eye).add(f_prime);
+    this.updateViewMatrix();
+  }
+
+  panRight() {
+    const f = new Vector3().set(this.at).sub(this.eye);
+    const rot = new Matrix4().setRotate(-this.angleStep, ...this.up.elements);
+    const f_prime = rot.multiplyVector3(f);
+    this.at = new Vector3().set(this.eye).add(f_prime);
+    this.updateViewMatrix();
+  }
+}
