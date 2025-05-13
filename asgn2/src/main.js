@@ -3,20 +3,30 @@ var VSHADER_SOURCE = `
     attribute vec4 a_Position; // Vertex position
     uniform mat4 u_ModelMatrix; // Model matrix
     uniform mat4 u_GlobalRotationMatrix; // Global rotation
+    uniform mat4 u_ProjectionMatrix; // Projection matrix
+    uniform mat4 u_ViewMatrix; // View matrix
+
+    attribute vec2 a_UV; // Texture coordinates
+    varying vec2 v_UV; // Varying variable to pass UV coordinates to fragment shader
     void main() {
-        gl_Position = u_GlobalRotationMatrix * u_ModelMatrix * a_Position; // Apply model matrix to vertex position
+        gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_GlobalRotationMatrix * u_ModelMatrix * a_Position; // Apply model matrix to vertex position
+        v_UV = a_UV; // Pass UV coordinates to fragment shader
     }
 `
 var FSHADER_SOURCE = `
     precision mediump float; // Set default precision to medium
+    varying vec2 v_UV; // Varying variable to receive UV coordinates from vertex shader
     uniform vec4 u_FragColor; // Fragment color
+    uniform sampler2D u_Sampler0; // Texture sampler
     void main() {
         gl_FragColor = u_FragColor; // Set fragment color
-    }
+        gl_FragColor = vec4(v_UV, 1.0, 1.0);
+        gl_FragColor = texture2D(u_Sampler0, v_UV); // Sample texture color
 `
 
 let canvas, gl;
-let a_Position, u_ModelMatrix, u_FragColor, u_GlobalRotationMatrix;
+let a_Position, a_UV;
+let u_ModelMatrix, u_FragColor, u_GlobalRotationMatrix, u_ProjectionMatrix, u_ViewMatrix, u_Sampler0;
 let g_cubeColor = [1, 1, 1, 1]; // Default color white
 let g_globalAngle = 0.0; // Global rotation angle
 let g_joint1Angle = 0.0; // Joint 1 rotation angle
@@ -34,6 +44,7 @@ function main() {
     setupWebGL();
     connectVariablesToGLSL();
     addActionsForHtmlUI();
+    initTextures(gl, 0); // Initialize textures 
     gl.clearColor(0.0, 0.0, 0.0, 1.0); // black background
     renderScene();
 }
@@ -245,7 +256,6 @@ function connectVariablesToGLSL() {
         console.log('Failed to get the storage location of u_FragColor');
         return;
     }
-
     u_GlobalRotationMatrix = gl.getUniformLocation(gl.program, 'u_GlobalRotationMatrix');
     if (!u_GlobalRotationMatrix) {
         console.log('Failed to get the storage location of u_GlobalRotationMatrix');
