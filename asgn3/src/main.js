@@ -48,7 +48,7 @@ let walls = [];
 let visibleWalls = [];
 
 const SPWAN_POS = [16, 1, 16];
-const RENDER_DIST = 100; // Render distance
+const RENDER_DIST = 1000; // Render distance
 const FOV_ANGLE = 60; // Field of view angle
 const FOV_DOT_CUTOFF = Math.cos(FOV_ANGLE * Math.PI / 180 / 2); // precompute cosine of half-FOV
 
@@ -120,62 +120,56 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
         walls.push({ matrix: m, color: [0.6, 0.4, 0.3, 1.0], texture: 0 });
       }
     }
-  }
+}
 
 function updateVisibleWalls() {
-    const [camX, camY, camZ] = camera.eye;
+    const [camX, camY, camZ] = camera.eye.elements;
     visibleWalls = [];
-
-    // View direction vector (normalized)
-    const camDir = [
-        camera.at[0] - camX,
-        camera.at[1] - camY,
-        camera.at[2] - camZ,
-    ];
-    const dirLength = Math.hypot(...camDir);
-    const viewDir = camDir.map(c => c / dirLength);
-
-    const paddedFOV = FOV_ANGLE + 20; // Pad FOV by 20 degrees
-    const fovDotCutoff = Math.cos((paddedFOV * 0.5) * Math.PI / 180); // Use padded FOV
-
+  
+    // Compute camera view direction (normalized)
+    const camDir = new Vector3().set(camera.at).sub(camera.eye).normalize();
+    const viewDir = camDir.elements;
+  
+    // Use a slightly padded FOV to preload blocks at the edge of vision
+    const paddedFOV = camera.fov + 20;
+    const fovDotCutoff = Math.cos((paddedFOV * 0.5) * Math.PI / 180);
     const maxDistSq = RENDER_DIST * RENDER_DIST;
-
+  
     for (let w of walls) {
-        const m = w.matrix.elements;
-        const cubeX = m[12];
-        const cubeY = m[13];
-        const cubeZ = m[14];
-
-        const dx = cubeX - camX;
-        const dy = cubeY - camY;
-        const dz = cubeZ - camZ;
-        const distSq = dx * dx + dy * dy + dz * dz;
-
-        if (distSq > maxDistSq) continue;
-
-        const blockLen = Math.sqrt(distSq);
-        const blockDir = [dx / blockLen, dy / blockLen, dz / blockLen];
-        const dot = viewDir[0] * blockDir[0] + viewDir[1] * blockDir[1] + viewDir[2] * blockDir[2];
-
-        if (dot > fovDotCutoff) {
-            visibleWalls.push(w);
-        }
+      const m = w.matrix.elements;
+      const cubeX = m[12];
+      const cubeY = m[13];
+      const cubeZ = m[14];
+  
+      const dx = cubeX - camX;
+      const dy = cubeY - camY;
+      const dz = cubeZ - camZ;
+      const distSq = dx * dx + dy * dy + dz * dz;
+  
+      if (distSq > maxDistSq) continue;
+  
+      const blockDir = new Vector3([dx, dy, dz]).normalize().elements;
+      const dot = viewDir[0] * blockDir[0] +
+                  viewDir[1] * blockDir[1] +
+                  viewDir[2] * blockDir[2];
+  
+      if (dot > fovDotCutoff) {
+        visibleWalls.push(w);
+      }
     }
-}
+  }  
 
 function renderScene() {
     // Start time for performance measurement
     var startTime = performance.now(); 
 
-    // Set projection and view matrices
-    var projM = new Matrix4().setPerspective(FOV_ANGLE, canvas.width / canvas.height, 1, RENDER_DIST);
-    gl.uniformMatrix4fv(u_ProjectionMatrix, false, projM.elements); // Set projection matrix
+    // Update camera matrices
+    camera.projectionMatrix.setPerspective(camera.fov, canvas.width / canvas.height, 1, RENDER_DIST);
+    camera.updateViewMatrix();
 
-    var viewM = new Matrix4().setLookAt(
-        camera.eye[0], camera.eye[1], camera.eye[2], 
-        camera.at[0], camera.at[1], camera.at[2], 
-        camera.up[0], camera.up[1], camera.up[2]); // Set view matrix
-    gl.uniformMatrix4fv(u_ViewMatrix, false, viewM.elements); // Set view matrix
+    // Set projection and view matrices
+    gl.uniformMatrix4fv(u_ProjectionMatrix, false, camera.projectionMatrix.elements);
+    gl.uniformMatrix4fv(u_ViewMatrix, false, camera.viewMatrix.elements);
     
     // Create a new matrix for global rotation
     var globalRotM = new Matrix4().rotate(g_globalAngle, 0, 1, 0); 
@@ -193,13 +187,8 @@ function renderScene() {
     gl.uniform1i(u_whichTexture, 0); // Set which texture to use
     const skyM = new Matrix4()
     .setTranslate(0, 0, 0)
-    .scale(100, 100, 100); // Scale to create a large sky
+    .scale(1000, 1000, 1000); // Scale to create a large sky
     drawCubeUV(skyM, null, 0); // Draw sky
-
-    // const skyM = new Matrix4()
-    // .translate(camera.eye[0], camera.eye[1], camera.eye[2])
-    // .scale(100, 100, 100);
-    // drawCubeUV(skyM, null, 0);
 
     // 2) Ground
     const groundM = new Matrix4()
@@ -221,8 +210,11 @@ function renderScene() {
 
     var duration = performance.now() - startTime;
     const fps = Math.floor(10000 / duration);
-    const eye = camera.eye.map(v => v.toFixed(2));
-    const camPos = `(${eye[0]}, ${eye[1]}, ${eye[2]})`;
+    const camPos = `(
+        ${camera.eye.elements[0].toFixed(2)}, 
+        ${camera.eye.elements[1].toFixed(2)}, 
+        ${camera.eye.elements[2].toFixed(2)}
+        )`;
 
     sendTextToHTML(`ms: ${Math.floor(duration)}  fps: ${fps}  cam: ${camPos}`, 'numdot');
 }
