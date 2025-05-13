@@ -59,8 +59,10 @@ const RENDER_DIST = 1000; // Render distance
 const FOV_ANGLE = 60; // Field of view angle
 const REACH_DISTANCE = 3; // Distance to reach for block placement/removal
 
+let numTextures = 3;
 let skyTexture = null;
 let dirtTexture = null;
+let meteorTexture = null;
 
 function main() {
     setupWebGL();
@@ -73,15 +75,22 @@ function main() {
     initTextures(); // Initialize textures 
     console.log("WebGL context initialized");
     document.onkeydown = handleKeydown; // Register keydown event handler
-    canvas.addEventListener('mousemove', () => {
+    // document.body.addEventListener('mousemove', () => {
+    //     const bg = document.getElementById("bgm");
+    //     if (bg) {
+    //         bg.volume = 0.3;
+    //         bg.play().catch((e) => {
+    //             console.warn("Background music blocked:", e);
+    //         });
+    //     }
+    // }, { once: true });
+    canvas.addEventListener('mousedown', () => {
         const bg = document.getElementById("bgm");
-        if (bg) {
-            bg.volume = 0.3;
-            bg.play().catch((e) => {
-                console.warn("Background music blocked:", e);
-            });
+        if (bg && bg.paused) {
+          bg.volume = 0.3;
+          bg.play().catch(() => {});
         }
-    }, { once: true });
+      }, { once: true });
     handleMouse(); // Register mouse event handlers
     tick();
     
@@ -266,13 +275,18 @@ function renderScene() {
 function meteorFall() {
     if (!meteorFalling) return;
 
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, meteorTexture);
+    gl.uniform1i(u_Sampler0, 2);
+    gl.uniform1i(u_whichTexture, 0);
     const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(2, 2, 2);
-    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], -2);
+    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], 0);
     g_meteorY -= 0.05;
 
     if (g_meteorY <= 0.5) {
         g_meteorY = 0.5;
         meteorFalling = false;
+        drawMeteor();
 
         const impact = document.getElementById("meteorSound");
         if (impact) {
@@ -287,9 +301,19 @@ function meteorFall() {
 
   function drawMeteor() {
     if (g_meteorY === null) return;  // not initialized or hidden
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, meteorTexture);
+    gl.uniform1i(u_Sampler0, 2);
+    gl.uniform1i(u_whichTexture, 0);
     const meteorSize = 5;
+    const flameScale = 1.2;
     const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(meteorSize, meteorSize, meteorSize);
-    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], -2);  // Big red cube
+    var flameM = new Matrix4(meteorM).translate(0, flameScale / 2, 0).scale(flameScale, flameScale * 2, flameScale);
+    if (!meteorFalling) {
+        flameM = new Matrix4(meteorM).translate(0, flameScale / 2, 0).scale(flameScale * 20, flameScale * 20, flameScale * 20);
+    }
+    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], 0);
+    drawCubeUV(flameM, [1, 0.2, 0.2, 0.4], -2);
   }
 
 function sendTextToHTML(text, htmlID) {
@@ -310,6 +334,8 @@ function setupWebGL() {
     }
     gl.enable(gl.DEPTH_TEST); // Enable depth test
     gl.disable(gl.CULL_FACE); // Disable face culling
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     canvas.width = 800;
     canvas.height = 600;
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -414,8 +440,8 @@ function initTextures() {
 
     function tryRender() {
         texturesLoaded++;
-        if (texturesLoaded === 2) {
-            console.log("Both textures loaded. Rendering...");
+        if (texturesLoaded === numTextures) {
+            console.log(numTextures, "textures loaded. Rendering...");
             renderScene();
         }
     }
@@ -427,6 +453,10 @@ function initTextures() {
 
     loadTexture('../resources/dirt.jpg', 1, function(tex) {
         dirtTexture = tex;
+        tryRender();
+    });
+    loadTexture('../resources/meteor.jpg', 1, function(tex) {
+        meteorTexture = tex;
         tryRender();
     });
 }
