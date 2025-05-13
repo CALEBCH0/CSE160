@@ -75,15 +75,61 @@
   <meta charset="UTF-8" />
   <title>Asgn 3</title>
   <style>
-    body { margin:0; background:#fff; color:#222; font-family:sans-serif }
-    canvas { display:block; margin:20px auto; border:1px solid #444 }
-    .controls p { margin: 8px 0; }
-    .controls span.value { margin-left: 8px; font-weight: bold; }
+    #canvas-container {
+      position: relative;
+      width: 800px;
+      height: 600px;
+      margin: 20px auto;
+      border: 1px solid #444;
+    }
+
+    #webgl {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background-color: #000;
+    }
+
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      margin-top: -10px;
+      pointer-events: none;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: white;
+    }
+
+    #crosshair::before {
+      top: 9px;
+      left: 0;
+      right: 0;
+      height: 2px;
+    }
+
+    #crosshair::after {
+      left: 9px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+    }
   </style>
 </head>
 <body onload="main()">
   <h1 style="text-align:center">ASGN 3</h1>
-  <canvas id="webgl" width="500" height="500" style="background-color: #000;"></canvas>
+  <div id="canvas-container">
+    <canvas id="webgl" width="800" height="600"></canvas>
+    <div id="crosshair"></div>
+  </div>
+
   <div class="controls">
     <p id="numdot"> XXX </p>
     <p>
@@ -99,5 +145,7 @@
   <script src="Cube.js"></script>
   <script src="Camera.js"></script>
   <script src="main.js"></script>
+  <audio id="bgm" src="../resources/wethands.mp3" loop></audio>
+  <audio id="meteorSound" src="../resources/meteor.mp3"></audio>
 </body>
 </html>

@@ -43,15 +43,21 @@ let u_ModelMatrix,
 let g_cubeColor = [1, 1, 1, 1]; // Default color white
 let g_textureNum = -2; // Default texture number
 let g_globalAngle = 0.0; // Global rotation angle
+let g_meteorY = 50;         // Starting Y position
+let g_meteorSpeed = 0.05;   // Falling speed
+let meteorFalling = true;
+
 let map = [];
 let walls = [];
 let visibleWalls = [];
+let isMouseDown = false;
+let lastMouseX = 0;
+let lastMouseY = 0;
 
 const SPWAN_POS = [16, 1, 16];
 const RENDER_DIST = 1000; // Render distance
 const FOV_ANGLE = 60; // Field of view angle
-const FOV_DOT_CUTOFF = Math.cos(FOV_ANGLE * Math.PI / 180 / 2); // precompute cosine of half-FOV
-
+const REACH_DISTANCE = 3; // Distance to reach for block placement/removal
 
 let skyTexture = null;
 let dirtTexture = null;
@@ -67,7 +73,27 @@ function main() {
     initTextures(); // Initialize textures 
     console.log("WebGL context initialized");
     document.onkeydown = handleKeydown; // Register keydown event handler
+    canvas.addEventListener('mousemove', () => {
+        const bg = document.getElementById("bgm");
+        if (bg) {
+            bg.volume = 0.3;
+            bg.play().catch((e) => {
+                console.warn("Background music blocked:", e);
+            });
+        }
+    }, { once: true });
+    handleMouse(); // Register mouse event handlers
+    tick();
+    
 }
+
+function tick() {
+    if (meteorFalling) meteorFall(); // Update meteor position if falling
+    updateVisibleWalls();
+    renderScene();
+    requestAnimationFrame(tick);
+  }
+  
 
 function setCubeColor(rgba) {
     g_cubeColor = rgba; // Set cube color
@@ -122,17 +148,32 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
     }
 }
 
+function getFOVDotCutoff(fovDegrees, paddingDegrees = 20) {
+    const verticalFOV = (fovDegrees + paddingDegrees) * Math.PI / 180;
+    const aspect = canvas.width / canvas.height;
+    const horizontalFOV = 2 * Math.atan(Math.tan(verticalFOV / 2) * aspect);
+    return Math.cos(horizontalFOV / 2);
+  }
+
 function updateVisibleWalls() {
     const [camX, camY, camZ] = camera.eye.elements;
     visibleWalls = [];
   
-    // Compute camera view direction (normalized)
-    const camDir = new Vector3().set(camera.at).sub(camera.eye).normalize();
-    const viewDir = camDir.elements;
+    const viewDir = new Vector3().set(camera.at).sub(camera.eye).normalize().elements;
   
-    // Use a slightly padded FOV to preload blocks at the edge of vision
-    const paddedFOV = camera.fov + 20;
-    const fovDotCutoff = Math.cos((paddedFOV * 0.5) * Math.PI / 180);
+    // Compute the **canvas aspect ratio**
+    const aspectRatio = canvas.width / canvas.height;
+
+    const padding = 30; // degrees
+  
+    // Convert vertical FOV (in degrees) to radians and calculate horizontal FOV
+    const verticalFOV = camera.fov * Math.PI / 180;
+    const horizontalFOV = 2 * Math.atan(Math.tan(verticalFOV / 2) * aspectRatio);
+  
+    // Add optional padding for preloading off-screen cubes
+    const paddedHFOV = horizontalFOV + (padding * Math.PI / 180); // pad 20 degrees in radians
+    const fovDotCutoff = getFOVDotCutoff(camera.fov, padding);
+  
     const maxDistSq = RENDER_DIST * RENDER_DIST;
   
     for (let w of walls) {
@@ -157,7 +198,7 @@ function updateVisibleWalls() {
         visibleWalls.push(w);
       }
     }
-  }  
+  }
 
 function renderScene() {
     // Start time for performance measurement
@@ -206,6 +247,9 @@ function renderScene() {
         drawCubeUV(w.matrix, null, 0);
     }
 
+    // 4) Meteor
+    drawMeteor(); // Draw meteor if it exists
+
     // <---------- end of world ----------->
 
     var duration = performance.now() - startTime;
@@ -218,6 +262,35 @@ function renderScene() {
 
     sendTextToHTML(`ms: ${Math.floor(duration)}  fps: ${fps}  cam: ${camPos}`, 'numdot');
 }
+
+function meteorFall() {
+    if (!meteorFalling) return;
+
+    const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(2, 2, 2);
+    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], -2);
+    g_meteorY -= 0.05;
+
+    if (g_meteorY <= 0.5) {
+        g_meteorY = 0.5;
+        meteorFalling = false;
+
+        const impact = document.getElementById("meteorSound");
+        if (impact) {
+            impact.currentTime = 0;
+            impact.volume = 1.0;
+            impact.play().catch(() => {});
+        }
+
+        console.log("Meteor has landed!");
+    }
+}
+
+  function drawMeteor() {
+    if (g_meteorY === null) return;  // not initialized or hidden
+    const meteorSize = 5;
+    const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(meteorSize, meteorSize, meteorSize);
+    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], -2);  // Big red cube
+  }
 
 function sendTextToHTML(text, htmlID) {
     var htmlElement = document.getElementById(htmlID);
@@ -237,6 +310,8 @@ function setupWebGL() {
     }
     gl.enable(gl.DEPTH_TEST); // Enable depth test
     gl.disable(gl.CULL_FACE); // Disable face culling
+    canvas.width = 800;
+    canvas.height = 600;
     gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
@@ -334,21 +409,6 @@ function addActionsForHtmlUI() {
     });
 }
 
-// function initTextures() {
-//     var image = new Image(); // Create an image object
-//     if (!image) {
-//         console.log('Failed to create the image object');
-//         return false;
-//     }
-//     image.onload = function() { sendTextureToTEXTURE0(image); }; // Register the event handler
-//     image.src = '../resources/sky.jpg'; // Set the source of the image
-//     image.onerror = function() {
-//         console.log('Failed to load the image at ' + image.src);
-//     }
-//     // add more textures here
-//     return true; // Return true if successful
-// }
-
 function initTextures() {
     let texturesLoaded = 0;
 
@@ -430,7 +490,84 @@ function handleKeydown(e) {
         case 'E':
             camera.panRight();
             break;
+        case 'm':
+        case 'M':
+            startMeteorFall();
+            break;
     }
     updateVisibleWalls();
     renderScene();
+}
+
+function handleMouse() {
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // Prevent the context menu from appearing
+    });
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+            console.log("Mouse events registered", e.button);
+            toggleBlock();
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (e.buttons === 2) {
+            const dx = e.movementX;
+            const dy = e.movementY;
+            if (dx !== 0) camera.panBy(dx * 0.2);  // horizontal
+            if (dy !== 0) camera.tiltBy(-dy * 0.2); // vertical (inverted so drag up = look up)
+            updateVisibleWalls();
+            renderScene();
+        }
+    });
+}
+
+function toggleBlock() {
+    // Direction from eye to at
+    const dir = new Vector3().set(camera.at).sub(camera.eye);
+    if (dir.magnitude() === 0) return;
+    dir.normalize();
+
+    // Project forward by REACH_DISTANCE units
+    const target = new Vector3().set(camera.eye).add(dir.mul(REACH_DISTANCE));
+
+    // Round to nearest block grid coordinate
+    const x = Math.floor(target.elements[0] + 0.5);
+    const y = Math.floor(target.elements[1] + 0.5);
+    const z = Math.floor(target.elements[2] + 0.5);
+
+    // Bounds check
+    if (
+      x < 0 || x >= map.length ||
+      z < 0 || z >= map[0].length ||
+      y < 0 || y >= 32
+    ) return;
+
+    // Find block at target
+    const idx = walls.findIndex(w => {
+        const m = w.matrix.elements;
+        return Math.floor(m[12] + 0.5) === x &&
+               Math.floor(m[13] + 0.5) === y &&
+               Math.floor(m[14] + 0.5) === z;
+    });
+
+    if (idx !== -1) {
+        // Block exists → remove
+        walls.splice(idx, 1);
+        if (map[x][z] > 0) map[x][z]--;
+    } else {
+        // Block does not exist → add
+        const m = new Matrix4().setTranslate(x, y, z).scale(1, 1, 1);
+        walls.push({ matrix: m, color: [0.6, 0.4, 0.3, 1.0], texture: 0 });
+        if (map[x][z] < y + 1) map[x][z] = y + 1;
+    }
+
+    updateVisibleWalls();
+    renderScene();
+}
+
+function startMeteorFall() {
+    g_meteorY = 50; // Reset Y position
+    meteorFalling = true; // Start falling
+    console.log("Meteor started falling!");
 }

@@ -21,6 +21,7 @@ class Camera {
 
     this.speed = 0.25;
     this.angleStep = 3; // degrees
+    this.pitch = 0;
   }
 
   updateViewMatrix() {
@@ -74,6 +75,29 @@ class Camera {
   panRight() {
     const f = new Vector3().set(this.at).sub(this.eye);
     const rot = new Matrix4().setRotate(-this.angleStep, ...this.up.elements);
+    const f_prime = rot.multiplyVector3(f);
+    this.at = new Vector3().set(this.eye).add(f_prime);
+    this.updateViewMatrix();
+  }
+
+  panBy(degrees) {
+    const f = new Vector3().set(this.at).sub(this.eye);
+    const rot = new Matrix4().setRotate(-degrees, ...this.up.elements);
+    const f_prime = rot.multiplyVector3(f);
+    this.at = new Vector3().set(this.eye).add(f_prime);
+    this.updateViewMatrix();
+  }
+
+  tiltBy(angle) {
+    const newPitch = this.pitch + angle;
+    if (newPitch > 89) angle = 89 - this.pitch;
+    if (newPitch < -89) angle = -89 - this.pitch;
+    this.pitch += angle;
+
+    const f = new Vector3().set(this.at).sub(this.eye);  // get forward direction
+    const right = Vector3.cross(f, this.up).normalize(); // right vector
+
+    const rot = new Matrix4().setRotate(angle, ...right.elements); // rotate around right
     const f_prime = rot.multiplyVector3(f);
     this.at = new Vector3().set(this.eye).add(f_prime);
     this.updateViewMatrix();
