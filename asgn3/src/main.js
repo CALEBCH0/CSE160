@@ -54,7 +54,7 @@ let isMouseDown = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 
-const SPWAN_POS = [16, 1, 16];
+const SPAWN_POS = [16, 1, 16];
 const RENDER_DIST = 1000; // Render distance
 const FOV_ANGLE = 60; // Field of view angle
 const REACH_DISTANCE = 3; // Distance to reach for block placement/removal
@@ -144,7 +144,7 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
       let x = Math.floor(Math.random() * (rows - 2)) + 1;  // avoid edges
       let z = Math.floor(Math.random() * (cols - 2)) + 1;
 
-      if (x === SPWAN_POS[0] && z === SPWAN_POS[2]) {
+      if (x === SPAWN_POS[0] && z === SPAWN_POS[2]) {
         i--; // try again
         continue;
       }

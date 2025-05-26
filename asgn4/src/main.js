@@ -1,54 +1,88 @@
 // main.js
 var VSHADER_SOURCE = `
-    attribute vec4 a_Position; // Vertex position
+  attribute vec4 a_Position;
+  attribute vec2 a_UV;
+  attribute vec3 a_Normal;
 
-    uniform mat4 u_ModelMatrix; // Model matrix
-    uniform mat4 u_GlobalRotationMatrix; // Global rotation
-    uniform mat4 u_ProjectionMatrix; // Projection matrix
-    uniform mat4 u_ViewMatrix; // View matrix
-    uniform mat4 u_NormalMatrix;
+  uniform mat4 u_ModelMatrix;
+  uniform mat4 u_NormalMatrix;
+  uniform mat4 u_ViewMatrix;
+  uniform mat4 u_ProjectionMatrix;
+  uniform mat4 u_GlobalRotationMatrix;
+  uniform vec3 u_LightPos;
+  uniform vec3 u_CameraPos;
 
-    attribute vec2 a_UV; // Texture coordinates
-    attribute vec3 a_Normal;
+  varying vec2 v_UV;
+  varying vec3 v_NormalDir;
+  varying vec3 v_LightDir;
+  varying vec3 v_WorldPos;
 
-    varying vec2 v_UV; // Varying variable to pass UV coordinates to fragment shader
-    varying vec3 v_Normal;
+  void main() {
+    mat4 model = u_GlobalRotationMatrix * u_ModelMatrix;
+    vec4 worldPosition = model * a_Position;
+    v_WorldPos = worldPosition.xyz;
 
-    void main() {
-        gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_GlobalRotationMatrix * u_ModelMatrix * a_Position; // Apply model matrix to vertex position
-        v_UV = a_UV; // Pass UV coordinates to fragment shader
-        v_Normal = normalize((u_NormalMatrix * vec4(a_Normal, 0.0)).xyz);
-    }
+    gl_Position = u_ProjectionMatrix * u_ViewMatrix * worldPosition;
+
+    v_UV = a_UV;
+    v_NormalDir = mat3(u_NormalMatrix) * a_Normal;
+    v_LightDir = u_LightPos - worldPosition.xyz;
+  }
 `;
 
 var FSHADER_SOURCE = `
-    precision mediump float; // Set default precision to medium
-    
-    varying vec2 v_UV; // Varying variable to receive UV coordinates from vertex shader
-    varying vec3 v_Normal;
+  precision mediump float;
 
-    uniform bool u_NormalVisualization;
-    uniform vec4 u_FragColor; // Fragment color
-    uniform sampler2D u_Sampler0; // Texture sampler
-    uniform int u_whichTexture; // Texture unit
-    
-    void main() {
-        if (u_NormalVisualization) {
-            vec3 norm = normalize(v_Normal);
-            gl_FragColor = vec4(norm * 0.5 + 0.5, 1.0);
-        } else {
-            if (u_whichTexture == -2) {
-                gl_FragColor = u_FragColor; // Use fragment color
-            } else if (u_whichTexture == -1) {
-                gl_FragColor = vec4(v_UV, 1.0, 1.0); // Use UV coordinates as color
-            } else if (u_whichTexture == 0) {
-                gl_FragColor = texture2D(u_Sampler0, v_UV); // Sample texture color
-            } else {
-                gl_FragColor = vec4(1.0, .2, .2, 1.0); // reddish for error
-            }
-        }
+  varying vec2 v_UV;
+  varying vec3 v_NormalDir;
+  varying vec3 v_LightDir;
+  varying vec3 v_WorldPos;
+
+  uniform bool u_NormalVisualization;
+  uniform bool u_LightingOn;
+  uniform vec4 u_FragColor;
+  uniform sampler2D u_Sampler0;
+  uniform int u_whichTexture;
+  uniform vec3 u_CameraPos;
+
+  void main() {
+    vec3 N = normalize(v_NormalDir);
+    vec3 L = normalize(v_LightDir);
+    vec3 V = normalize(u_CameraPos - v_WorldPos);
+    vec3 R = reflect(-L, N);
+
+    float nDotL = max(dot(N, L), 0.0);
+    float specular = pow(max(dot(R, V), 0.0), 32.0);
+
+    vec3 ambient = vec3(0.1);
+    vec3 diffuse = nDotL * vec3(1.0);
+    vec3 highlight = specular * vec3(1.0);
+
+    vec3 lighting = ambient + diffuse + highlight;
+
+    if (u_NormalVisualization) {
+      vec3 norm = normalize(N);
+      gl_FragColor = vec4(norm * 0.5 + 0.5, 1.0);
+    } else {
+      vec4 baseColor;
+      if (u_whichTexture == -2) {
+        baseColor = u_FragColor;
+      } else if (u_whichTexture == -1) {
+        baseColor = vec4(v_UV, 1.0, 1.0);
+      } else if (u_whichTexture == 0) {
+        baseColor = texture2D(u_Sampler0, v_UV);
+      } else {
+        baseColor = vec4(1.0, 0.2, 0.2, 1.0);
+      }
+      if (u_LightingOn) {
+        gl_FragColor = vec4(baseColor.rgb * lighting, baseColor.a);
+      } else {
+        gl_FragColor = baseColor;
+      }
     }
+  }
 `;
+
 
 let canvas, gl, camera;
 let a_Position, a_UV, a_Normal;
@@ -61,7 +95,9 @@ let u_ModelMatrix,
     u_whichTexture,
     u_Sampler0,
     u_NormalMatrix,
-    u_NormalVisualization;
+    u_NormalVisualization,
+    u_LightPos,
+    u_LightingOn;
 
 let g_cubeColor = [1, 1, 1, 1]; // Default color white
 let g_textureNum = -2; // Default texture number
@@ -69,6 +105,8 @@ let g_globalAngle = 0.0; // Global rotation angle
 let g_meteorY = 50;         // Starting Y position
 let g_meteorSpeed = 0.05;   // Falling speed
 let g_showNormals = false;
+let g_lightPos = new Vector3([16, 5, 14]); // light position
+let g_lightingOn = true;
 
 let map = [];
 let walls = [];
@@ -78,7 +116,7 @@ let lastMouseX = 0;
 let lastMouseY = 0;
 let meteorFalling = true;
 
-const SPWAN_POS = [16, 1, 16];
+const SPAWN_POS = [16, 1, 16];
 const RENDER_DIST = 1000; // Render distance
 const FOV_ANGLE = 60; // Field of view angle
 const REACH_DISTANCE = 3; // Distance to reach for block placement/removal
@@ -87,7 +125,7 @@ let numTextures = 3;
 let skyTexture = null;
 let dirtTexture = null;
 let meteorTexture = null;
-let g_sphere = new Sphere(1, 24, 16);
+
 function main() {
     setupWebGL();
     gl.clearColor(0.0, 0.0, 0.0, 1.0); // black background
@@ -108,8 +146,6 @@ function main() {
       }, { once: true });
     handleMouse(); // Register mouse event handlers
     tick();
-    
-    g_sphere.position = new Vector3([16, 1, 16]);
 
 }
 
@@ -121,6 +157,13 @@ function tick() {
     updateVisibleWalls();
     renderScene();
     requestAnimationFrame(tick);
+    const t = performance.now() / 1000;
+    const orbitRad = 2.5;
+    const centerX = 16;
+    const centerZ = 14;
+    g_lightPos.elements[0] = centerX + Math.cos(t) * orbitRad;
+    g_lightPos.elements[2] = centerZ + Math.sin(t) * orbitRad;
+    // g_lightPos.elements[1] = 5;
   }
   
 
@@ -161,10 +204,11 @@ function generateBlocks(rows = 32, cols = 32, numBlocks = 100, maxHeight = 4) {
       let x = Math.floor(Math.random() * (rows - 2)) + 1;  // avoid edges
       let z = Math.floor(Math.random() * (cols - 2)) + 1;
 
-      if (x === SPWAN_POS[0] && z === SPWAN_POS[2]) {
-        i--; // try again
-        continue;
-      }
+      // Skip if within 3-block radius of spawn
+        if (Math.abs(x - SPAWN_POS[0]) <= 2 && Math.abs(z - SPAWN_POS[2]) <= 2) {
+            i--; // try again
+            continue;
+        }
 
       let height = Math.floor(Math.random() * maxHeight) + 1;
   
@@ -234,6 +278,9 @@ function renderScene() {
     var startTime = performance.now(); 
 
     gl.uniform1i(u_NormalVisualization, g_showNormals);
+    gl.uniform3f(u_LightPos, ...g_lightPos.elements);
+    gl.uniform3f(u_CameraPos, ...camera.eye.elements);
+    gl.uniform1i(u_LightingOn, g_lightingOn);
 
     // Update camera matrices
     camera.projectionMatrix.setPerspective(camera.fov, canvas.width / canvas.height, 1, RENDER_DIST);
@@ -251,6 +298,9 @@ function renderScene() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
     // <---------- draw world ----------->
+    // light
+    const lightMarkerM = new Matrix4().setTranslate(...g_lightPos.elements).scale(0.2, 0.2, 0.2);
+    drawCubeUV(lightMarkerM, [1, 1, 0, 1], -2);
 
     // 1) Sky
     gl.activeTexture(gl.TEXTURE0); // Activate texture unit 0
@@ -281,7 +331,9 @@ function renderScene() {
     // 4) Meteor
     drawMeteor(); // Draw meteor if it exists
 
-    g_sphere.render(gl, camera);
+    // 5) sphere
+    const sphereM = new Matrix4().setTranslate(16, 1, 14).scale(0.5, 0.5, 0.5);
+    drawSphereUV(sphereM, null, -2);
 
     // <---------- end of world ----------->
 
@@ -466,6 +518,24 @@ function connectVariablesToGLSL() {
         return false;
     }
 
+    u_LightPos = gl.getUniformLocation(gl.program, 'u_LightPos');
+    if (!g_lightPos) {
+        console.log("Failed to get the storage location of u_LightPos");
+        return false;
+    }
+
+    u_CameraPos = gl.getUniformLocation(gl.program, 'u_CameraPos');
+    if (!u_CameraPos) {
+        console.log("Failed to get the storage location of u_CameraPos");
+        return false;
+    }
+
+    u_LightingOn = gl.getUniformLocation(gl.program, 'u_LightingOn');
+    if (!u_LightingOn) {
+        console.log("Failed to get the storage location of u_LightinOn");
+        return false;
+    }
+
     var identityMatrix = new Matrix4();
     gl.uniformMatrix4fv(u_ModelMatrix, false, identityMatrix.elements); // Set model matrix to identity
 }
@@ -473,6 +543,10 @@ function connectVariablesToGLSL() {
 function addActionsForHtmlUI() {
     document.getElementById('angleSlide').addEventListener('mousemove', function() {
         g_globalAngle = -this.value;
+        renderScene();
+    });
+    document.getElementById('lightHeight').addEventListener('input', function() {
+        g_lightPos.elements[1] = parseFloat(this.value);
         renderScene();
     });
 }
@@ -653,4 +727,9 @@ function toggleNormalView() {
 function toggleMeteor() {
     meteorFalling = !meteorFalling;
     console.log("Meteor animation " + (meteorFalling ? "started" : "stopped"));
+}
+
+function toggleLighting() {
+    g_lightingOn = !g_lightingOn;
+    renderScene();
 }
