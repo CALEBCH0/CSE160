@@ -54,6 +54,11 @@
 </head>
 <body onload="main()">
   <h1 style="text-align:center">ASGN 4</h1>
+  <p>Caleb Cho gacho@ucsc.edu</p>
+  <p>controls: move: wasd pan: qr</p>
+  <p>right click and drag to move camera</p>
+  <p>left click to destroy/place blocks</p>
+  <p>Press m to reset meteor</p>
   <div id="canvas-container">
     <canvas id="webgl" width="800" height="600"></canvas>
     <div id="crosshair"></div>
@@ -69,13 +74,16 @@
     </p>
     <p>
       <button onclick="toggleMeteor()">Toggle Meteor</button>
+    </p>
+    <p>
       <button onclick="toggleNormalView()">Toggle Normals</button>
-      <label for="lightHeight">Light Height</label>
-      <input type="range" id="lightHeight" min="0" max="10" step="0.1" value="5">
       <button onclick="toggleLighting()">Toggle Lighting</button>
       <button onclick="toggleSpotlight()">Toggle Spotlight</button>
     </p>
-    <p>Press m to drop meteor</p>
+    <p>
+      <label for="lightHeight">Light Height</label>
+      <input type="range" id="lightHeight" min="0" max="10" step="0.1" value="5">
+    </p>
   </div>
 
   <script src="../lib/cuon-matrix-cse160.js"></script>
