@@ -40,10 +40,13 @@ var FSHADER_SOURCE = `
 
   uniform bool u_NormalVisualization;
   uniform bool u_LightingOn;
+  uniform bool u_SpotlightOn;
   uniform vec4 u_FragColor;
   uniform sampler2D u_Sampler0;
   uniform int u_whichTexture;
   uniform vec3 u_CameraPos;
+  uniform vec3 u_SpotDir;
+  uniform float u_SpotCutoffCos; // in radians
 
   void main() {
     vec3 N = normalize(v_NormalDir);
@@ -59,6 +62,17 @@ var FSHADER_SOURCE = `
     vec3 highlight = specular * vec3(1.0);
 
     vec3 lighting = ambient + diffuse + highlight;
+
+    if (u_SpotlightOn) {
+        vec3 spotDir = normalize(u_SpotDir);
+        vec3 lightDir = normalize(-v_LightDir);
+        float spotEffect = dot(lightDir, spotDir);
+        if (spotEffect < u_SpotCutoffCos) {
+        lighting = ambient; // no diffuse/specular
+        } else {
+            lighting *= spotEffect;
+        }
+    }
 
     if (u_NormalVisualization) {
       vec3 norm = normalize(N);
@@ -97,7 +111,10 @@ let u_ModelMatrix,
     u_NormalMatrix,
     u_NormalVisualization,
     u_LightPos,
-    u_LightingOn;
+    u_LightingOn,
+    u_SpotlightOn,
+    u_SpotDir,
+    u_SpotCutoffCos;
 
 let g_cubeColor = [1, 1, 1, 1]; // Default color white
 let g_textureNum = -2; // Default texture number
@@ -107,6 +124,7 @@ let g_meteorSpeed = 0.05;   // Falling speed
 let g_showNormals = false;
 let g_lightPos = new Vector3([16, 5, 14]); // light position
 let g_lightingOn = true;
+let g_spotlightOn = true;
 
 let map = [];
 let walls = [];
@@ -125,6 +143,7 @@ let numTextures = 3;
 let skyTexture = null;
 let dirtTexture = null;
 let meteorTexture = null;
+let teapot = new Model("../resources/teapot.obj");
 
 function main() {
     setupWebGL();
@@ -281,6 +300,9 @@ function renderScene() {
     gl.uniform3f(u_LightPos, ...g_lightPos.elements);
     gl.uniform3f(u_CameraPos, ...camera.eye.elements);
     gl.uniform1i(u_LightingOn, g_lightingOn);
+    gl.uniform1i(u_SpotlightOn, g_spotlightOn);
+    gl.uniform3f(u_SpotDir, 0.0, -1.0, 0.0); // spotlight facing down
+    gl.uniform1f(u_SpotCutoffCos, Math.cos(10 * Math.PI / 180)); // 10 deg cone
 
     // Update camera matrices
     camera.projectionMatrix.setPerspective(camera.fov, canvas.width / canvas.height, 1, RENDER_DIST);
@@ -334,6 +356,12 @@ function renderScene() {
     // 5) sphere
     const sphereM = new Matrix4().setTranslate(16, 1, 14).scale(0.5, 0.5, 0.5);
     drawSphereUV(sphereM, null, -2);
+
+    // teapot
+    if (teapot) {
+        teapot.matrix.setTranslate(18, 0, 14).scale(0.2, 0.2, 0.2);
+        teapot.render();
+    }
 
     // <---------- end of world ----------->
 
@@ -536,6 +564,31 @@ function connectVariablesToGLSL() {
         return false;
     }
 
+    u_SpotlightOn = gl.getUniformLocation(gl.program, 'u_SpotlightOn');
+    if (!u_LightingOn) {
+        console.log("Failed to get the storage location of u_SpotlightOn");
+        return false;
+    }
+
+    u_SpotDir = gl.getUniformLocation(gl.program, 'u_SpotDir');
+    if (!u_LightingOn) {
+        console.log("Failed to get the storage location of u_SpotDir");
+        return false;
+    }
+
+    u_SpotCutoffCos = gl.getUniformLocation(gl.program, 'u_SpotCutoffCos');
+    if (!u_LightingOn) {
+        console.log("Failed to get the storage location of u_SpotCutoffCos");
+        return false;
+    }
+
+    gl.program.a_Position = a_Position;
+    gl.program.a_Normal = a_Normal;
+    gl.program.u_ModelMatrix = u_ModelMatrix;
+    gl.program.u_NormalMatrix = u_NormalMatrix;
+    gl.program.u_FragColor = u_FragColor;
+
+
     var identityMatrix = new Matrix4();
     gl.uniformMatrix4fv(u_ModelMatrix, false, identityMatrix.elements); // Set model matrix to identity
 }
@@ -733,3 +786,8 @@ function toggleLighting() {
     g_lightingOn = !g_lightingOn;
     renderScene();
 }
+
+function toggleSpotlight() {
+    g_spotlightOn = !g_spotlightOn;
+    renderScene();
+  }

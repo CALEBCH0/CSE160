@@ -68,21 +68,24 @@
       <span id="angleSlideValue" class="value">0</span>°      
     </p>
     <p>
-      <button onclick="toggleNormalView()">Toggle Normals</button>
       <button onclick="toggleMeteor()">Toggle Meteor</button>
+      <button onclick="toggleNormalView()">Toggle Normals</button>
       <label for="lightHeight">Light Height</label>
       <input type="range" id="lightHeight" min="0" max="10" step="0.1" value="5">
       <button onclick="toggleLighting()">Toggle Lighting</button>
+      <button onclick="toggleSpotlight()">Toggle Spotlight</button>
     </p>
     <p>Press m to drop meteor</p>
   </div>
 
   <script src="../lib/cuon-matrix-cse160.js"></script>
+  <script src="../lib/OBJLoader.js"></script>
   <!-- <script src="../lib/cuon-utils.js"></script> -->
   <script src="Triangle.js"></script>
   <script src="Cube.js"></script>
   <script src="Sphere.js"></script>
   <script src="Camera.js"></script>
+  <script src="Model.js"></script>
   <script src="main.js"></script>
   <audio id="bgm" src="../resources/wethands.mp3" loop></audio>
   <audio id="meteorSound" src="../resources/meteor.mp3"></audio>
