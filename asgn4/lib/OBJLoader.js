@@ -1,10 +1,11 @@
-import { Vector3 } from "./cuon-matrix";
+// import { Vector3 } from "./cuon-matrix";
 
 //------------------------------------------------------------------------------
 // OBJParser
 //------------------------------------------------------------------------------
 // prettier-ignore
-export class OBJLoader {
+// export 
+class OBJLoader {
   constructor(filePath) {
       this.filePath = filePath;
       this.mtls = new Array(0);      // Initialize the property for MTL
