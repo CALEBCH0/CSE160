@@ -125,6 +125,7 @@ let g_showNormals = false;
 let g_lightPos = new Vector3([16, 5, 14]); // light position
 let g_lightingOn = true;
 let g_spotlightOn = true;
+let g_volume = 0.3;
 
 let map = [];
 let walls = [];
@@ -149,23 +150,27 @@ function main() {
     setupWebGL();
     gl.clearColor(0.0, 0.0, 0.0, 1.0); // black background
     connectVariablesToGLSL();
-    camera = new Camera();
     addActionsForHtmlUI();
-    generateBlocks(); // Generate blocks with random heights
-    updateVisibleWalls(); // Update visible walls based on camera position
     initTextures(); // Initialize textures 
-    console.log("WebGL context initialized");
     document.onkeydown = handleKeydown; // Register keydown event handler
+    handleMouse(); // Register mouse event handlers
+    playBgm();
+    console.log("WebGL context initialized");
+
+    generateBlocks(); // Generate blocks with random heights 
+    camera = new Camera();
+
+    tick();
+}
+
+function playBgm() {
     canvas.addEventListener('mousedown', () => {
         const bg = document.getElementById("bgm");
         if (bg && bg.paused) {
-          bg.volume = 0.3;
+          bg.volume = g_volume;
           bg.play().catch(() => {});
         }
       }, { once: true });
-    handleMouse(); // Register mouse event handlers
-    tick();
-
 }
 
 function tick() {
@@ -378,15 +383,9 @@ function renderScene() {
 
 function meteorFall() {
     if (!meteorFalling) return;
-
-    gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, meteorTexture);
-    gl.uniform1i(u_Sampler0, 2);
-    gl.uniform1i(u_whichTexture, 0);
-    const meteorM = new Matrix4().setTranslate(16, g_meteorY, 16).scale(2, 2, 2);
-    drawCubeUV(meteorM, [0.8, 0.2, 0.2, 1.0], 0);
     g_meteorY -= g_meteorSpeed;
 
+    // when meteor hits the ground
     if (g_meteorY <= 0.5) {
         g_meteorY = 0.5;
         meteorFalling = false;
@@ -395,7 +394,7 @@ function meteorFall() {
         const impact = document.getElementById("meteorSound");
         if (impact) {
             impact.currentTime = 0;
-            impact.volume = 1.0;
+            impact.volume = g_volume / 3;
             impact.play().catch(() => {});
         }
 
@@ -602,6 +601,9 @@ function addActionsForHtmlUI() {
         g_lightPos.elements[1] = parseFloat(this.value);
         renderScene();
     });
+    document.getElementById('volumeSlide').addEventListener('input', function() {
+        g_volume = this.value;
+    });
 }
 
 function initTextures() {
@@ -695,8 +697,6 @@ function handleKeydown(e) {
             g_meteorSpeed = 0.05;
             break;
     }
-    updateVisibleWalls();
-    renderScene();
 }
 
 function handleMouse() {
@@ -716,8 +716,6 @@ function handleMouse() {
             const dy = e.movementY;
             if (dx !== 0) camera.panBy(dx * 0.2);  // horizontal
             if (dy !== 0) camera.tiltBy(-dy * 0.2); // vertical (inverted so drag up = look up)
-            updateVisibleWalls();
-            renderScene();
         }
     });
 }
@@ -761,9 +759,6 @@ function toggleBlock() {
         walls.push({ matrix: m, color: [0.6, 0.4, 0.3, 1.0], texture: 0 });
         if (map[x][z] < y + 1) map[x][z] = y + 1;
     }
-
-    updateVisibleWalls();
-    renderScene();
 }
 
 function startMeteorFall() {

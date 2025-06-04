@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ASGN 5</title>
+
+  <!-- import‐map to point “three” at the CDN -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- Make sure main.js is loaded as a module -->
+  <script type="module" src="main.js"></script>
+
+  <style>
+    /* (optional) remove default body margin so canvas fills the window */
+    body { margin: 0; overflow: hidden; }
+    #c { display: block; }
+
+    #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    #loading .progress {
+    margin: 1.5em;
+    border: 1px solid white;
+    width: 50vw;
+    }
+    #loading .progressbar {
+        margin: 2px;
+        background: white;
+        height: 1em;
+        transform-origin: top left;
+        transform: scaleX(0);
+    }
+  </style>
+</head>
+
+<body>
+  <h1 style="text-align: center">ASGN 5</h1>
+  <div style="text-align: center">
+    <p>Caleb Cho  gacho@ucsc.edu</p>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <div id="loading">
+    <div class="progress"><div class="progressbar"></div></div>
+  </div>
+
+  <div class="controls"></div>
+</body>
+</html>
