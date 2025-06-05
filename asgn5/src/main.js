@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
+// import { VertexShader, FragmentShader } from './CloudShaders.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const ROAD_LENGTH = 400;
@@ -35,11 +36,9 @@ const STAR_SPREAD_Z = 20;
 const SPAWN_INTERVAL = 1.5;
 
 // Speeds (units/sec)
-const PLAYER_SPEED = 15;
-const ROAD_SPEED = PLAYER_SPEED;
-const BUILDING_SPEED = PLAYER_SPEED;
-const CAR_SPEED = 20;
-const COIN_SPEED_MULTIPLIER = 0.8;
+const BASE_SPEED = 20;
+const BOOST_MUL = 2;
+const BOOST_DURATION = 5;
 // ───────────────────────────────────────────────────────────────────────────────
 
 let scene, camera, renderer;
@@ -74,11 +73,22 @@ let boostEndTime = 0;
 let carSize = 5;
 let buildingSize = 5;
 let starSize = 2;
+let moonMesh, cloudMesh, cloudMaterial;
 
 let debugMode = false;
 let fpControls;
 
 const keys = { ArrowLeft: false, ArrowRight: false };
+
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('instructionOverlay');
+    const startBtn = document.getElementById('startButton');
+  
+    startBtn.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      // Once hidden, your existing LoadingManager → startGame() → animate() flow will run.
+    });
+  });
 
 function initScene() {
   const canvas = document.querySelector('#c');
@@ -89,8 +99,8 @@ function initScene() {
   const fov = 60;
   const aspect = window.innerWidth / window.innerHeight;
   camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 500);
-  camera.position.set(0, 1.6, 0);
-  camera.lookAt(0, 1.6, -1);
+  camera.position.set(0, 1.6, -10);
+  camera.lookAt(0, 1.6, -20);
 
   scene = new THREE.Scene();
 
@@ -99,12 +109,19 @@ function initScene() {
   skyTex.mapping = THREE.EquirectangularReflectionMapping;
   scene.background = skyTex;
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  dirLight.position.set(0.5, 1, 0.3);
-  scene.add(dirLight);
+  // (1) Very dim ambient light (barely fills in the shadows)
+    const ambLight = new THREE.AmbientLight(0x404040, 0.2); 
+    scene.add(ambLight);
 
-  const ambLight = new THREE.AmbientLight(0x404040, 0.7);
-  scene.add(ambLight);
+    // (2) Weaker directional “sun” / fill light 
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    dirLight.position.set(0.5, 1, 0.3);
+    scene.add(dirLight);
+
+    // (3) PointLight from the moon – stronger so it “pops”
+    const pointLight = new THREE.PointLight(0xffffff, 60.0, 500);
+    pointLight.position.set(0, 50, -150);
+    scene.add(pointLight);
 
   fpControls = new FirstPersonControls(camera, renderer.domElement);
   fpControls.movementSpeed = 10;
@@ -125,6 +142,28 @@ function initScene() {
     scene.add(star);
     stars.push(star);
   }
+
+  // create the moon
+  const moonTex = new THREE.TextureLoader().load('../resources/Moon.jpg');
+  const moonGeo = new THREE.SphereGeometry(20, 32, 32);
+  const moonMat = new THREE.MeshBasicMaterial({ map: moonTex });
+  moonMesh = new THREE.Mesh(moonGeo, moonMat);
+  moonMesh.position.set(0, 50, -200);
+  scene.add(moonMesh);
+
+  // create a “cloud layer” around the moon using our shaders
+//   const cloudGeo = new THREE.SphereGeometry(22, 32, 32);
+//   cloudMaterial = new THREE.ShaderMaterial({
+//     vertexShader: VertexShader,
+//     fragmentShader: FragmentShader,
+//     uniforms: {
+//       uTime: { value: 0 },
+//     },
+//     transparent: true
+//   });
+//   cloudMesh = new THREE.Mesh(cloudGeo, cloudMaterial);
+//   cloudMesh.position.copy(moonMesh.position);
+//   scene.add(cloudMesh);
 
   window.addEventListener('resize', onWindowResize);
   window.addEventListener('keydown', onKeyDown);
@@ -186,7 +225,7 @@ function loadModels() {
 
 function startGame() {
   initRoadAndBuildings();
-  preplaceCarsAndObstacles();
+  prespawnObjects();
   lastSpawnTime = performance.now() * 0.001;
   requestAnimationFrame(animate);
 }
@@ -219,8 +258,9 @@ function initRoadAndBuildings() {
   }
 }
 
-function preplaceCarsAndObstacles() {
-  for (let i = 0; i < NUM_CARS; i++) {
+function prespawnObjects() {
+  // prespawn cars
+    for (let i = 0; i < NUM_CARS; i++) {
     const laneIndex = Math.round(Math.random());
     const x = laneX[laneIndex];
     const z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
@@ -232,17 +272,46 @@ function preplaceCarsAndObstacles() {
     cars.push({ mesh: car, lane: laneIndex });
   }
 
-  for (let i = 0; i < NUM_OBSTACLES; i++) {
+  // prespawn coins
+  const NUM_COINS = 10;
+  for (let i = 0; i < NUM_COINS; i++) {
     const laneIndex = Math.round(Math.random());
     const x = laneX[laneIndex];
     const z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
 
-    const boxGeo = new THREE.BoxGeometry(2, 2, 2);
-    const boxMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
-    const obs = new THREE.Mesh(boxGeo, boxMat);
-    obs.position.set(x, 1, z);
-    scene.add(obs);
-    obstacles.push({ mesh: obs, lane: laneIndex });
+    const coin = coinProto.clone();
+    coin.position.set(x, 1.5, z);
+    coin.scale.set(1, 1, 1);
+    scene.add(coin);
+    coins.push({ mesh: coin, lane: laneIndex, type: 'coin' });
+}
+
+    // prespawn obstacles
+  for (let i = 0; i < NUM_OBSTACLES; i++) {
+    const laneIndex = Math.round(Math.random());
+    const x = laneX[laneIndex];
+    const z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
+  
+    let obsMesh;
+    if (i % 2 === 0) {
+      // even index → cylinder obstacle
+      const drumTex = new THREE.TextureLoader().load('../resources/Drum.jpg');
+      const cylGeo = new THREE.CylinderGeometry(0.7, 0.7, 2, 16);
+
+      const cylMat = new THREE.MeshPhongMaterial({ map: drumTex });
+      obsMesh = new THREE.Mesh(cylGeo, cylMat);
+      obsMesh.position.set(x, 1, z);
+    } else {
+      // odd index → rectangular box obstacle
+      const rectGeo = new THREE.BoxGeometry(1.5, 3, 1.5);
+      const rockTex = new THREE.TextureLoader().load('../resources/Rock.jpg');
+      const rectMat = new THREE.MeshPhongMaterial({ map: rockTex });
+      obsMesh = new THREE.Mesh(rectGeo, rectMat);
+      obsMesh.position.set(x, 0.5, z);
+    }
+  
+    scene.add(obsMesh);
+    obstacles.push({ mesh: obsMesh, lane: laneIndex });
   }
 }
 
@@ -253,18 +322,21 @@ function onWindowResize() {
 }
 
 function onKeyDown(e) {
-  if (e.key === 'x' || e.key === 'X') {
-    debugMode = !debugMode;
-    fpControls.enabled = debugMode;
-    if (!debugMode) {
-      lastTime = performance.now() * 0.001;
-      lastSpawnTime = lastTime;
-      console.log('Exited DEBUG MODE, resuming game.');
-    } else {
-      console.log('Entered DEBUG MODE (use WASD + mouse). Press X again to exit.');
-    }
-    return;
-  }
+    if (e.key === 'x' || e.key === 'X') {
+        // flip debugMode and enable controls
+        debugMode = !debugMode;
+        fpControls.enabled = debugMode;
+    
+        if (debugMode) {
+          // If we're entering debug mode—even if gameOver is true—restart animate()
+          lastTime = performance.now() * 0.001;
+          requestAnimationFrame(animate);
+          console.log('Entered DEBUG MODE. You can now fly around even after Game Over.');
+        } else {
+          console.log('Exited DEBUG MODE.');
+        }
+        return;
+      }
 
   if (!debugMode) {
     if (gameOver && e.key === 'r') {
@@ -339,12 +411,26 @@ function animate(timeMs) {
   let delta = lastTime ? time - lastTime : 0;
   lastTime = time;
 
+  // allow Debug mode unconditionally:
   if (debugMode) {
     fpControls.update(delta);
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
     return;
   }
+
+  // rotate the moon itself
+  if (moonMesh) {
+    moonMesh.rotation.y += delta * 0.05;
+  }
+
+  // update our cloud shader’s time uniform
+  if (cloudMaterial) {
+    cloudMaterial.uniforms.uTime.value = time;
+  }
+
+  const GAME_SPEED = boostActive ? BASE_SPEED * BOOST_MUL : BASE_SPEED;
+
   if (gameOver) return;
 
   // 1) Increment “alive” score 10 points per second
@@ -369,23 +455,23 @@ function animate(timeMs) {
   }
 
   // 4) Scroll road forward
-  baseMesh.position.z += ROAD_SPEED * delta;
+  baseMesh.position.z += GAME_SPEED * delta;
   if (baseMesh.position.z > 0) {
     baseMesh.position.z = -ROAD_HALF;
   }
 
   // 5) Scroll buildings + recycle
   buildings.forEach((bld) => {
-    bld.position.z += BUILDING_SPEED * delta;
+    bld.position.z += GAME_SPEED * delta;
     if (bld.position.z > 0) {
       bld.position.z = MIN_START_Z;
     }
   });
 
   // 6) Move cars + recycle + collision
-  cars.forEach((cobj) => {
+  cars.forEach((cobj, idx) => {
     const c = cobj.mesh;
-    c.position.z += CAR_SPEED * delta;
+    c.position.z += GAME_SPEED * delta;
     if (c.position.z > 0) {
       c.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
     }
@@ -393,30 +479,44 @@ function animate(timeMs) {
       c.position.z > -1 &&
       Math.abs(camera.position.x - c.position.x) < 1
     ) {
+        console.log(
+            `DEBUG: car[${idx}] collided → pos (${c.position.x.toFixed(2)}, ${c.position.y.toFixed(2)}, ${c.position.z.toFixed(2)}), camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
+        );
       if (immunityCount > 0) {
         immunityCount--;
+        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
         c.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
       } else {
+        console.log('Collision with car!');
         endGame();
       }
     }
   });
 
   // 7) Move obstacles + recycle + collision
-  obstacles.forEach((oobj) => {
+obstacles.forEach((oobj, idx) => {
     const o = oobj.mesh;
-    o.position.z += CAR_SPEED * delta;
+    o.position.z += GAME_SPEED * delta;
+  
     if (o.position.z > 0) {
+      // recycle it
       o.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
     }
+  
+    // collision test:
     if (
       o.position.z > -1 &&
       Math.abs(camera.position.x - o.position.x) < 1
     ) {
+      console.log(
+        `DEBUG: obstacle[${idx}] collided → pos (${o.position.x.toFixed(2)}, ${o.position.y.toFixed(2)}, ${o.position.z.toFixed(2)}), camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
+      );
       if (immunityCount > 0) {
         immunityCount--;
+        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
         o.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
       } else {
+        console.log('Collision with obstacle!');
         endGame();
       }
     }
@@ -426,7 +526,7 @@ function animate(timeMs) {
   for (let i = coins.length - 1; i >= 0; i--) {
     const cobj = coins[i];
     const c = cobj.mesh;
-    c.position.z += CAR_SPEED * COIN_SPEED_MULTIPLIER * delta;
+    c.position.z += GAME_SPEED * delta;
     if (c.position.z > 0) {
       scene.remove(c);
       coins.splice(i, 1);
@@ -438,9 +538,10 @@ function animate(timeMs) {
     ) {
       if (cobj.type === 'life') {
         immunityCount++;
+        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
       } else if (cobj.type === 'boost') {
         boostActive = true;
-        boostEndTime = time + 6.0;
+        boostEndTime = time + BOOST_DURATION;
       } else {
         score += 100;  // +100 points per coin
         document.getElementById('score').innerText = `Score: ${score}`;
@@ -465,9 +566,19 @@ function endGame() {
   document.getElementById('gameOver').style.display = 'block';
 }
 
-function main() {
-  initScene();
-  loadModels();
-}
+// function main() {
+//   initScene();
+//   loadModels();
+// }
 
-main();
+// main();
+
+document.getElementById('startButton').addEventListener('click', () => {
+    // Hide the overlay
+    document.getElementById('instructionOverlay').style.display = 'none';
+    // initialize lives
+    document.getElementById('lives').innerText = `Immunity: ${immunityCount}`;
+    // Kick off the Three.js initialization + loading
+    initScene();
+    loadModels();
+  });
