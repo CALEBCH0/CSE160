@@ -1,4 +1,7 @@
 // main.js
+// “City runner” scene using Building1.glb, Car.glb, Base.glb, Coin.glb.
+// Camera is now at eye level (y=1.6). Cars spawn larger (scale = 3x).
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -6,19 +9,20 @@ let scene, camera, renderer;
 let loader, loadManager;
 let buildingProto, carProto, baseProto, coinProto;
 let cars = [], coins = [], buildings = [];
-let playerLane = 0; // 0 = left, 1 = right
-const laneX = [ -2, 2 ]; // x positions for the two lanes
+let playerLane = 0; // 0 = left lane, 1 = right lane
+const laneX = [ -2, 2 ];     // x positions for the two lanes
 let score = 0;
 let gameOver = false;
 let lastSpawnTime = 0;
 let lastTime = 0;
+let carSize = 5;
 
-// Controls for left/right arrow keys
+// arrow‐key state
 const keys = { ArrowLeft: false, ArrowRight: false };
 
-// Timing settings
-const spawnInterval = 1.5;     // seconds between car/coin spawns
-const carSpeed = 20;           // units per second (car forward speed)
+// timing settings
+const spawnInterval = 1.5;      // seconds between car/coin spawns
+const carSpeed = 20;            // units/sec that cars move toward camera
 const coinSpeedMultiplier = 0.8; // coins move at 0.8 * carSpeed
 
 function initScene() {
@@ -28,21 +32,23 @@ function initScene() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
 
-  // 2) Camera
+  // 2) Camera at eye level (y=1.6) and z=10
   const fov = 60;
   const aspect = window.innerWidth / window.innerHeight;
   camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 200);
-  camera.position.set(0, 5, 10);
+  camera.position.set(0, 1.6, 10);
   camera.lookAt(0, 0, 0);
 
   // 3) Scene
   scene = new THREE.Scene();
 
-  // 4) Lights: directional + ambient
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  // 4) Lights
+  // Directional light (sun)
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
   dirLight.position.set(0.5, 1, 0.3);
   scene.add(dirLight);
 
+  // Ambient light (fill)
   const ambLight = new THREE.AmbientLight(0x404040, 0.7);
   scene.add(ambLight);
 
@@ -53,16 +59,16 @@ function initScene() {
 }
 
 function loadModels() {
-  // LoadingManager ensures startGame() only fires after all models load
+  // Use a LoadingManager so we only start the game after all 4 models load
   loadManager = new THREE.LoadingManager(startGame);
   loader = new GLTFLoader(loadManager);
 
-  // 1) Building.glb
+  // 1) Building1.glb
   loader.load(
     '../resources/Building1.glb',
     (gltf) => { buildingProto = gltf.scene.clone(); },
     undefined,
-    (err) => console.error('Error loading Building.glb:', err)
+    (err) => console.error('Error loading Building1.glb:', err)
   );
 
   // 2) Car.glb
@@ -73,7 +79,7 @@ function loadModels() {
     (err) => console.error('Error loading Car.glb:', err)
   );
 
-  // 3) Base.glb (road)
+  // 3) Base.glb (the road)
   loader.load(
     '../resources/Base.glb',
     (gltf) => { baseProto = gltf.scene.clone(); },
@@ -91,19 +97,20 @@ function loadModels() {
 }
 
 function startGame() {
-  // Called once all four GLB files finish loading
+  // Called once all four GLTF models finish loading
   initRoadAndBuildings();
   lastSpawnTime = performance.now() * 0.001; // in seconds
   requestAnimationFrame(animate);
 }
 
 function initRoadAndBuildings() {
-  // 1) Add Base (two‐lane road) at ground level
+  // 1) Add Base (road) at ground level, scaled up
   const base = baseProto.clone();
   base.position.set(0, 0, 0);
+  base.scale.set(5, 1, 50);
   scene.add(base);
 
-  // 2) Place buildings on each side of the road
+  // 2) Line up rows of buildings on either side
   const spacing = 10;
   const countPerSide = 6;
   for (let i = 0; i < countPerSide; i++) {
@@ -133,7 +140,7 @@ function onWindowResize() {
 
 function onKeyDown(e) {
   if (gameOver && e.key === 'r') {
-    // Restart by reloading
+    // Reload page to restart
     location.reload();
     return;
   }
@@ -164,14 +171,16 @@ function movePlayer(delta) {
 
 function spawnCar() {
   if (!carProto) return;
-  // Choose random lane (0 or 1)
+  // Choose a random lane (0 or 1)
   const laneIndex = Math.round(Math.random());
   const x = laneX[laneIndex];
-  const z = 80; // far ahead
+  const z = -80; // spawn far in front of camera
 
   const car = carProto.clone();
-  car.position.set(x, 0, z);
-  car.scale.set(1.5, 1.5, 1.5);
+  // Keep the original rotation so the car faces the camera
+  car.position.set(x, 0.5, z);
+  // Scale cars larger
+  car.scale.set(carSize, carSize, carSize);
   scene.add(car);
   cars.push({ mesh: car, lane: laneIndex });
 }
@@ -180,7 +189,7 @@ function spawnCoin() {
   if (!coinProto) return;
   const laneIndex = Math.round(Math.random());
   const x = laneX[laneIndex];
-  const z = 80;
+  const z = -80; // spawn in front
 
   const coin = coinProto.clone();
   coin.position.set(x, 1.5, z);
@@ -191,53 +200,60 @@ function spawnCoin() {
 
 function animate(timeMs) {
   if (gameOver) return;
-  const time = timeMs * 0.001; // seconds
+  const time = timeMs * 0.001;      // seconds
   const delta = lastTime ? time - lastTime : 0;
   lastTime = time;
 
   // 1) Move player (camera) left/right
   movePlayer(delta);
 
-  // 2) Spawn cars/coins at intervals
+  // 2) Spawn cars/coins every spawnInterval seconds
   if (time - lastSpawnTime > spawnInterval) {
     spawnCar();
     spawnCoin();
     lastSpawnTime = time;
   }
 
-  // 3) Move cars toward camera
+  // 3) Move cars toward camera and check collisions
   for (let i = cars.length - 1; i >= 0; i--) {
     const c = cars[i];
-    c.mesh.position.z -= carSpeed * delta;
+    // Cars move from negative z → positive z
+    c.mesh.position.z += carSpeed * delta;
 
-    // Remove if past camera
-    if (c.mesh.position.z < -10) {
+    // Remove if it has passed well beyond the camera
+    if (c.mesh.position.z > camera.position.z + 10) {
       scene.remove(c.mesh);
       cars.splice(i, 1);
       continue;
     }
 
-    // Collision: if car is within z<5 and same lane
-    if (c.mesh.position.z < 5 && Math.abs(camera.position.x - c.mesh.position.x) < 1) {
+    // Detect collision: if car z > (camera.z - 1) AND same lane (x difference < 1)
+    if (
+      c.mesh.position.z > camera.position.z - 1 &&
+      Math.abs(camera.position.x - c.mesh.position.x) < 1
+    ) {
       endGame();
       return;
     }
   }
 
-  // 4) Move coins and collect
+  // 4) Move coins and check for collection
   for (let i = coins.length - 1; i >= 0; i--) {
     const c = coins[i];
-    c.mesh.position.z -= carSpeed * coinSpeedMultiplier * delta;
+    c.mesh.position.z += carSpeed * coinSpeedMultiplier * delta;
 
-    // Remove if past camera
-    if (c.mesh.position.z < -5) {
+    // Remove if it passes beyond camera
+    if (c.mesh.position.z > camera.position.z + 5) {
       scene.remove(c.mesh);
       coins.splice(i, 1);
       continue;
     }
 
-    // Collect if within range
-    if (c.mesh.position.z < 5 && Math.abs(camera.position.x - c.mesh.position.x) < 1) {
+    // Collect if coin z > (camera.z - 1) AND same lane
+    if (
+      c.mesh.position.z > camera.position.z - 1 &&
+      Math.abs(camera.position.x - c.mesh.position.x) < 1
+    ) {
       scene.remove(c.mesh);
       coins.splice(i, 1);
       score += 1;
@@ -245,10 +261,10 @@ function animate(timeMs) {
     }
   }
 
-  // 5) Render
+  // 5) Render the scene
   renderer.render(scene, camera);
 
-  // 6) Next frame
+  // 6) Schedule next frame
   requestAnimationFrame(animate);
 }
 
