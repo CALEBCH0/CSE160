@@ -1,153 +1,265 @@
+// main.js
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-let scene, camera, renderer, loader, loadManager;
-let cubes = [];
+let scene, camera, renderer;
+let loader, loadManager;
+let buildingProto, carProto, baseProto, coinProto;
+let cars = [], coins = [], buildings = [];
+let playerLane = 0; // 0 = left, 1 = right
+const laneX = [ -2, 2 ]; // x positions for the two lanes
+let score = 0;
+let gameOver = false;
+let lastSpawnTime = 0;
+let lastTime = 0;
+
+// Controls for left/right arrow keys
+const keys = { ArrowLeft: false, ArrowRight: false };
+
+// Timing settings
+const spawnInterval = 1.5;     // seconds between car/coin spawns
+const carSpeed = 20;           // units per second (car forward speed)
+const coinSpeedMultiplier = 0.8; // coins move at 0.8 * carSpeed
 
 function initScene() {
-    // Create renderer + attach to <canvas>
-    const canvas = document.querySelector('#c');
-    renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-  
-    // Create camera
-    const fov = 75;
-    const aspect = window.innerWidth / window.innerHeight; // use real aspect
-    const near = 0.1;
-    const far = 5;
-    camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-    camera.position.z = 2;
-  
-    // Create scene
-    scene = new THREE.Scene();
+  // 1) Renderer + Canvas
+  const canvas = document.querySelector('#c');
+  renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
 
-    // set texture loader
-    loader = new THREE.TextureLoader();
-    loadManager = new THREE.LoadingManager();
+  // 2) Camera
+  const fov = 60;
+  const aspect = window.innerWidth / window.innerHeight;
+  camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 200);
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
 
-    // create world
-    initLights();
-    initWorldObjects();
-  
-    // Handle resize
-    window.addEventListener('resize', onWindowResize);
+  // 3) Scene
+  scene = new THREE.Scene();
+
+  // 4) Lights: directional + ambient
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(0.5, 1, 0.3);
+  scene.add(dirLight);
+
+  const ambLight = new THREE.AmbientLight(0x404040, 0.7);
+  scene.add(ambLight);
+
+  // 5) Event listeners
+  window.addEventListener('resize', onWindowResize);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
 }
 
-function resizeRendererToDisplaySize( renderer ) {
+function loadModels() {
+  // LoadingManager ensures startGame() only fires after all models load
+  loadManager = new THREE.LoadingManager(startGame);
+  loader = new GLTFLoader(loadManager);
 
-    const canvas = renderer.domElement;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const needResize = canvas.width !== width || canvas.height !== height;
-    if ( needResize ) {
+  // 1) Building.glb
+  loader.load(
+    '../resources/Building1.glb',
+    (gltf) => { buildingProto = gltf.scene.clone(); },
+    undefined,
+    (err) => console.error('Error loading Building.glb:', err)
+  );
 
-        renderer.setSize( width, height, false );
+  // 2) Car.glb
+  loader.load(
+    '../resources/Car.glb',
+    (gltf) => { carProto = gltf.scene.clone(); },
+    undefined,
+    (err) => console.error('Error loading Car.glb:', err)
+  );
 
-    }
+  // 3) Base.glb (road)
+  loader.load(
+    '../resources/Base.glb',
+    (gltf) => { baseProto = gltf.scene.clone(); },
+    undefined,
+    (err) => console.error('Error loading Base.glb:', err)
+  );
 
-    return needResize;
-
+  // 4) Coin.glb
+  loader.load(
+    '../resources/Coin.glb',
+    (gltf) => { coinProto = gltf.scene.clone(); },
+    undefined,
+    (err) => console.error('Error loading Coin.glb:', err)
+  );
 }
 
-function render(time) {
-    time *= 0.001; // convert ms → seconds
+function startGame() {
+  // Called once all four GLB files finish loading
+  initRoadAndBuildings();
+  lastSpawnTime = performance.now() * 0.001; // in seconds
+  requestAnimationFrame(animate);
+}
 
-    if (resizeRendererToDisplaySize(renderer)) {
-        const canvas = renderer.domElement;
-        camera.aspect = canvas.clientWidth / canvas.clientHeight;
-        camera.updateProjectionMatrix();
-    }
+function initRoadAndBuildings() {
+  // 1) Add Base (two‐lane road) at ground level
+  const base = baseProto.clone();
+  base.position.set(0, 0, 0);
+  scene.add(base);
 
-    cubes.forEach((cube, index) => {
-        const speed = 0.2 + index * 0.1; // Different speed for each cube
-        const rot = time * speed;
-        cube.rotation.x = rot;
-        cube.rotation.y = rot;
-    });
+  // 2) Place buildings on each side of the road
+  const spacing = 10;
+  const countPerSide = 6;
+  for (let i = 0; i < countPerSide; i++) {
+    const zPos = -20 + i * spacing;
 
-    renderer.render(scene, camera);
-    requestAnimationFrame(render);
+    // Left side at x = -10
+    const leftBld = buildingProto.clone();
+    leftBld.position.set(-10, 0, zPos);
+    leftBld.scale.set(2, 2, 2);
+    scene.add(leftBld);
+    buildings.push(leftBld);
+
+    // Right side at x = +10
+    const rightBld = buildingProto.clone();
+    rightBld.position.set(10, 0, zPos);
+    rightBld.scale.set(2, 2, 2);
+    scene.add(rightBld);
+    buildings.push(rightBld);
+  }
 }
 
 function onWindowResize() {
-    // Update camera + renderer when the window size changes
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function makeInstance(geometry, color, x) {
-    const material = new THREE.MeshPhongMaterial({ color });
-
-    const cube = new THREE.Mesh(geometry, material);
-    scene.add(cube);
-    cube.position.x = x;
-
-    return cube;
+function onKeyDown(e) {
+  if (gameOver && e.key === 'r') {
+    // Restart by reloading
+    location.reload();
+    return;
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    keys[e.key] = true;
+  }
 }
 
-function initLights() {
-    // Add a directional light
-    const light = new THREE.DirectionalLight(0xffffff, 3);
-    light.position.set(-1, 2, 4);
-    scene.add(light);
+function onKeyUp(e) {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    keys[e.key] = false;
+  }
 }
 
-function initWorldObjects() {
-    // set geometry for cubes
-    const boxWidth = 1;
-	const boxHeight = 1;
-	const boxDepth = 1;
-	const geometry = new THREE.BoxGeometry( boxWidth, boxHeight, boxDepth );
+function movePlayer(delta) {
+  // Only two lanes: playerLane = 0 (left) or 1 (right)
+  if (keys.ArrowLeft && playerLane > 0) {
+    playerLane = 0;
+  } else if (keys.ArrowRight && playerLane < 1) {
+    playerLane = 1;
+  }
 
-    // populate the scene with cubes
-    cubes = [
-        // makeInstance(geometry, 0x44aa88, 0),
-        // makeInstance(geometry, 0x8844aa, -2),
-        // makeInstance(geometry, 0xaa8844, 2),
-    ]
-
-    
-    const materials = [
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-1.jpg')}),
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-2.jpg')}),
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-3.jpg')}),
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-4.jpg')}),
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-5.jpg')}),
-        new THREE.MeshBasicMaterial({map: loadColorTexture('../resources/flower-6.jpg')}),
-    ];
-    
-    const loadingElem = document.querySelector( '#loading' );
-	const progressBarElem = loadingElem.querySelector( '.progressbar' );
-
-    loadManager.onLoad = () => {
-		loadingElem.style.display = 'none';
-		const cube = new THREE.Mesh( geometry, materials );
-		scene.add( cube );
-		cubes.push( cube ); // add to our list of cubes to rotate
-	};
-
-    loadManager.onProgress = ( urlOfLastItemLoaded, itemsLoaded, itemsTotal ) => {
-		const progress = itemsLoaded / itemsTotal;
-		progressBarElem.style.transform = `scaleX(${progress})`;
-	};
+  // Smoothly interpolate camera.x toward laneX[playerLane]
+  const targetX = laneX[playerLane];
+  const dx = targetX - camera.position.x;
+  camera.position.x += dx * (delta * 5);
 }
 
-function loadColorTexture(path) {
-    const texture = loader.load(path);
-    texture.colorSpace = THREE.SRGBColorSpace; // Ensure color space is correct
+function spawnCar() {
+  if (!carProto) return;
+  // Choose random lane (0 or 1)
+  const laneIndex = Math.round(Math.random());
+  const x = laneX[laneIndex];
+  const z = 80; // far ahead
 
-    return texture;
+  const car = carProto.clone();
+  car.position.set(x, 0, z);
+  car.scale.set(1.5, 1.5, 1.5);
+  scene.add(car);
+  cars.push({ mesh: car, lane: laneIndex });
+}
+
+function spawnCoin() {
+  if (!coinProto) return;
+  const laneIndex = Math.round(Math.random());
+  const x = laneX[laneIndex];
+  const z = 80;
+
+  const coin = coinProto.clone();
+  coin.position.set(x, 1.5, z);
+  coin.scale.set(1, 1, 1);
+  scene.add(coin);
+  coins.push({ mesh: coin, lane: laneIndex });
+}
+
+function animate(timeMs) {
+  if (gameOver) return;
+  const time = timeMs * 0.001; // seconds
+  const delta = lastTime ? time - lastTime : 0;
+  lastTime = time;
+
+  // 1) Move player (camera) left/right
+  movePlayer(delta);
+
+  // 2) Spawn cars/coins at intervals
+  if (time - lastSpawnTime > spawnInterval) {
+    spawnCar();
+    spawnCoin();
+    lastSpawnTime = time;
+  }
+
+  // 3) Move cars toward camera
+  for (let i = cars.length - 1; i >= 0; i--) {
+    const c = cars[i];
+    c.mesh.position.z -= carSpeed * delta;
+
+    // Remove if past camera
+    if (c.mesh.position.z < -10) {
+      scene.remove(c.mesh);
+      cars.splice(i, 1);
+      continue;
+    }
+
+    // Collision: if car is within z<5 and same lane
+    if (c.mesh.position.z < 5 && Math.abs(camera.position.x - c.mesh.position.x) < 1) {
+      endGame();
+      return;
+    }
+  }
+
+  // 4) Move coins and collect
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    c.mesh.position.z -= carSpeed * coinSpeedMultiplier * delta;
+
+    // Remove if past camera
+    if (c.mesh.position.z < -5) {
+      scene.remove(c.mesh);
+      coins.splice(i, 1);
+      continue;
+    }
+
+    // Collect if within range
+    if (c.mesh.position.z < 5 && Math.abs(camera.position.x - c.mesh.position.x) < 1) {
+      scene.remove(c.mesh);
+      coins.splice(i, 1);
+      score += 1;
+      document.getElementById('score').innerText = `Score: ${score}`;
+    }
+  }
+
+  // 5) Render
+  renderer.render(scene, camera);
+
+  // 6) Next frame
+  requestAnimationFrame(animate);
+}
+
+function endGame() {
+  gameOver = true;
+  document.getElementById('gameOver').style.display = 'block';
 }
 
 function main() {
-    // Initialize the scene
-    initScene();
-    // Set up the animation loop
-    requestAnimationFrame(render);
+  initScene();
+  loadModels();
 }
 
-
-
-// call main to load
 main();
