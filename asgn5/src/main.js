@@ -1,21 +1,31 @@
 // main.js
 // “City runner” scene using Building1.glb, Car.glb, Base.glb, Coin.glb.
-// Camera is now at eye level (y=1.6). Cars spawn larger (scale = 3x).
+// Camera at eye level (y=1.6), cars larger (scale=carSize).
+// Buildings face the road. 
+// Press X to toggle Debug/Creative mode (FirstPersonControls).
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
 
 let scene, camera, renderer;
 let loader, loadManager;
 let buildingProto, carProto, baseProto, coinProto;
+
 let cars = [], coins = [], buildings = [];
-let playerLane = 0; // 0 = left lane, 1 = right lane
-const laneX = [ -2, 2 ];     // x positions for the two lanes
+let playerLane = 0;            // 0 = left lane, 1 = right lane
+const laneX = [ -2, 2 ];       // x positions for the two lanes
 let score = 0;
 let gameOver = false;
 let lastSpawnTime = 0;
 let lastTime = 0;
-let carSize = 5;
+
+let carSize = 5;               // scale factor for cars
+let buildingSize = 5;          // scale factor for buildings
+
+// Debug mode flag and controls
+let debugMode = false;
+let fpControls;
 
 // arrow‐key state
 const keys = { ArrowLeft: false, ArrowRight: false };
@@ -42,17 +52,28 @@ function initScene() {
   // 3) Scene
   scene = new THREE.Scene();
 
+  // ─── SKYBOX VIA SINGLE EQUIRECTANGULAR IMAGE ───
+  const loaderSky = new THREE.TextureLoader();
+  const skyTex = loaderSky.load('../resources/nightsky2.jpg');
+  skyTex.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = skyTex;
+  // ───────────────────────────────────────────────
+
   // 4) Lights
-  // Directional light (sun)
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
   dirLight.position.set(0.5, 1, 0.3);
   scene.add(dirLight);
 
-  // Ambient light (fill)
   const ambLight = new THREE.AmbientLight(0x404040, 0.7);
   scene.add(ambLight);
 
-  // 5) Event listeners
+  // 5) FirstPersonControls (initially disabled)
+  fpControls = new FirstPersonControls(camera, renderer.domElement);
+  fpControls.movementSpeed = 10;
+  fpControls.lookSpeed = 0.1;
+  fpControls.enabled = false;
+
+  // 6) Event listeners
   window.addEventListener('resize', onWindowResize);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -107,26 +128,34 @@ function initRoadAndBuildings() {
   // 1) Add Base (road) at ground level, scaled up
   const base = baseProto.clone();
   base.position.set(0, 0, 0);
-  base.scale.set(5, 1, 50);
+  base.scale.set(5, 1, 100);
   scene.add(base);
 
-  // 2) Line up rows of buildings on either side
-  const spacing = 10;
-  const countPerSide = 6;
-  for (let i = 0; i < countPerSide; i++) {
-    const zPos = -20 + i * spacing;
+  // 2) Place rows of buildings on either side, rotated to face the road.
+  //    We want rows at z = 10, 0, -10, -20, -30, ... with no gaps.
 
-    // Left side at x = -10
+  const spacing = 10;        // gap between consecutive rows (in Z)
+  const numRows = 10;        // total number of rows to generate
+  const startZ = 10;         // topmost row at z = 10
+  const roadToBuildingDist = 10; // horizontal distance from road center to building
+
+  for (let i = 0; i < numRows; i++) {
+    const zPos = startZ - i * spacing;
+    // i=0 → zPos=10, i=1 → 0, i=2 → -10, etc.
+
+    // Left side at x = –roadToBuildingDist; rotate so front faces +X
     const leftBld = buildingProto.clone();
-    leftBld.position.set(-10, 0, zPos);
-    leftBld.scale.set(2, 2, 2);
+    leftBld.position.set(-roadToBuildingDist, 0, zPos);
+    leftBld.scale.set(buildingSize, buildingSize, buildingSize);
+    leftBld.rotation.y = Math.PI / 2; // face +X
     scene.add(leftBld);
     buildings.push(leftBld);
 
-    // Right side at x = +10
+    // Right side at x = +roadToBuildingDist; rotate so front faces –X
     const rightBld = buildingProto.clone();
-    rightBld.position.set(10, 0, zPos);
-    rightBld.scale.set(2, 2, 2);
+    rightBld.position.set(roadToBuildingDist, 0, zPos);
+    rightBld.scale.set(buildingSize, buildingSize, buildingSize);
+    rightBld.rotation.y = -Math.PI / 2; // face –X
     scene.add(rightBld);
     buildings.push(rightBld);
   }
@@ -139,31 +168,53 @@ function onWindowResize() {
 }
 
 function onKeyDown(e) {
-  if (gameOver && e.key === 'r') {
-    // Reload page to restart
-    location.reload();
+  if (e.key === 'x' || e.key === 'X') {
+    // Toggle Debug Mode
+    const wasDebug = debugMode;
+    debugMode = !debugMode;
+
+    // Enable/disable FirstPersonControls
+    fpControls.enabled = debugMode;
+
+    if (debugMode) {
+      console.log('Entered DEBUG MODE (use WASD + mouse to fly around). Press X again to exit.');
+    } else {
+      console.log('Exited DEBUG MODE, restarting game...');
+      // Reload the page to start fresh
+      location.reload();
+    }
     return;
   }
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    keys[e.key] = true;
+
+  if (!debugMode) {
+    // Only handle these keys when NOT in debug mode
+    if (gameOver && e.key === 'r') {
+      location.reload();
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      keys[e.key] = true;
+    }
   }
 }
 
 function onKeyUp(e) {
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    keys[e.key] = false;
+  if (!debugMode) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      keys[e.key] = false;
+    }
   }
 }
 
 function movePlayer(delta) {
-  // Only two lanes: playerLane = 0 (left) or 1 (right)
+  // Only in normal mode: lanes 0 (left) or 1 (right)
   if (keys.ArrowLeft && playerLane > 0) {
     playerLane = 0;
   } else if (keys.ArrowRight && playerLane < 1) {
     playerLane = 1;
   }
 
-  // Smoothly interpolate camera.x toward laneX[playerLane]
+  // Interpolate camera.x toward laneX[playerLane]
   const targetX = laneX[playerLane];
   const dx = targetX - camera.position.x;
   camera.position.x += dx * (delta * 5);
@@ -174,12 +225,10 @@ function spawnCar() {
   // Choose a random lane (0 or 1)
   const laneIndex = Math.round(Math.random());
   const x = laneX[laneIndex];
-  const z = -80; // spawn far in front of camera
+  const z = -80; // spawn far in front
 
   const car = carProto.clone();
-  // Keep the original rotation so the car faces the camera
   car.position.set(x, 0.5, z);
-  // Scale cars larger
   car.scale.set(carSize, carSize, carSize);
   scene.add(car);
   cars.push({ mesh: car, lane: laneIndex });
@@ -199,12 +248,21 @@ function spawnCoin() {
 }
 
 function animate(timeMs) {
-  if (gameOver) return;
   const time = timeMs * 0.001;      // seconds
   const delta = lastTime ? time - lastTime : 0;
   lastTime = time;
 
-  // 1) Move player (camera) left/right
+  if (debugMode) {
+    // In debug mode, use FirstPersonControls and skip all game logic
+    fpControls.update(delta);
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+    return;
+  }
+
+  if (gameOver) return;
+
+  // 1) Move player (camera) left/right along lanes
   movePlayer(delta);
 
   // 2) Spawn cars/coins every spawnInterval seconds
@@ -227,7 +285,7 @@ function animate(timeMs) {
       continue;
     }
 
-    // Detect collision: if car z > (camera.z - 1) AND same lane (x difference < 1)
+    // Collision: if car z > (camera.z - 1) AND same lane (x difference < 1)
     if (
       c.mesh.position.z > camera.position.z - 1 &&
       Math.abs(camera.position.x - c.mesh.position.x) < 1
