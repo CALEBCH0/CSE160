@@ -18,11 +18,19 @@
   <script type="module" src="main.js"></script>
 
   <style>
-    /* Fill the screen */
-    body { margin: 0; overflow: hidden; background: #87ceeb; }
-    #c { display: block; width: 100vw; height: 100vh; }
+    /* ───── Global / Canvas Styles ───── */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #87ceeb;
+    }
+    #c {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
 
-    /* Score in top‐left */
+    /* Score (top-left) */
     #score {
       position: absolute;
       top: 10px;
@@ -31,7 +39,19 @@
       font-size: 24px;
       font-family: sans-serif;
       text-shadow: 1px 1px 2px #000;
-      z-index: 1;
+      z-index: 2;
+    }
+
+    /* Lives (top-right) */
+    #lives {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: #fff;
+      font-size: 24px;
+      font-family: sans-serif;
+      text-shadow: 1px 1px 2px #000;
+      z-index: 2;
     }
 
     /* Game Over overlay (hidden until game-over) */
@@ -46,10 +66,10 @@
       font-family: sans-serif;
       text-shadow: 2px 2px 4px #000;
       text-align: center;
-      z-index: 1;
+      z-index: 2;
     }
 
-    /* Reminder for debug mode (appears at bottom) */
+    /* Debug hint (bottom) */
     #debugHint {
       position: absolute;
       bottom: 10px;
@@ -59,18 +79,20 @@
       font-size: 18px;
       font-family: sans-serif;
       text-shadow: 1px 1px 2px #000;
-      z-index: 1;
+      z-index: 2;
       pointer-events: none;
     }
 
     /* ───── Instruction Overlay Styles ───── */
     #instructionOverlay {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       background: rgba(0, 0, 0, 0.85);
       color: #ffffff;
-      display: flex;
+      display: flex;              /* make it visible by default */
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -98,46 +120,67 @@
     #startButton:hover {
       background: #218838;
     }
-    /* ────────────────────────────────── */
+
+    /* ───── Toggle Instructions Button ───── */
+    #toggleInstructionsBtn {
+      position: absolute;
+      /* top: 10px; */
+      right: 10px;
+      z-index: 3;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #toggleInstructionsBtn:hover {
+      background: rgba(0,0,0,0.8);
+    }
+    /* ────────────────────────────────────────── */
   </style>
 </head>
 
 <body>
-  <!-- ─── Instruction Overlay (shown at page load) ─── -->
+  <!-- ─── Instruction Overlay (visible by default) ─── -->
   <div id="instructionOverlay">
-    <h1>Controls &amp; Information</h1>
+    <h1>Controls &amp; Info</h1>
     <p>Use ◀️ Left / ▶️ Right to switch lanes</p>
-    <p>Collect coins for +100 points each</p>
-    <p>“Life” gives one immunity to collision</p>
-    <p>“Boost” doubles your speed for 5 seconds</p>
-    <p>Press <strong>X</strong> to toggle Debug/Creative mode</p>
-    <p>Use WASD to move in the creative mode</p>
-    <p>Avoid cars (red), barrels, and rock obstacles</p>
-    <p>Primary shapes(all textured):</p>
-    <p>- 20 starts and 1 Moon in the sky(spheres)</p>
-    <p>- 5 barrels(cylinders) and rocks(cubes)</p>
-    <p>3D models: cars, coins, items, buildings, and road</p>
-    <p>Feature: obstacle runner game inspired by subway surfer with different items</p>
-    <p>Caleb Cho, gacho@ucsc.edu</p>
+    <p>Collect coins for +100 points</p>
+    <p>“Life” gives one immunity</p>
+    <p>“Boost” doubles speed for 5 seconds</p>
+    <p>Press <strong>X</strong> to toggle Debug mode</p>
+    <p>Use WASD in Debug mode to fly around</p>
+    <p>Avoid cars (red), barrels, and rocks</p>
+    <p>(All primary shapes are textured: spheres, cylinders, cubes)</p>
+    <p>Extra feature: obstacle runner game inspired by Subway Surfers</p>
+    <p>Caleb Cho – gacho@ucsc.edu</p>
     <button id="startButton">▶️ Start Game</button>
   </div>
 
   <!-- ─── HUD & Canvas ─── -->
   <div id="score">Score: 0</div>
-  <div id="lives" style="
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    color: #fff;
-    font-size: 24px;
-    font-family: sans-serif;
-    text-shadow: 1px 1px 2px #000;
-    z-index: 1;
-  ">
-  Immunity: 0
-  </div>
+  <div id="lives">Immunity: 0</div>
   <div id="gameOver">Game Over<br>Press R to Restart</div>
   <div id="debugHint">Press X to toggle Debug Mode</div>
+  <button
+    id="toggleInstructionsBtn"
+    style="
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 3;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    ">
+    Show Instructions
+  </button>
   <canvas id="c"></canvas>
 </body>
 </html>
