@@ -342,7 +342,7 @@ function onKeyDown(e) {
       }
 
   if (!debugMode) {
-    if (gameOver && e.key === 'r') {
+    if (gameOver && (e.key === 'r' || e.key === 'R')) {
       // location.reload();
       resetGame();
       return;
