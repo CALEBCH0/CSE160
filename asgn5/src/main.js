@@ -36,8 +36,10 @@ const STAR_SPREAD_Z = 20;
 const SPAWN_INTERVAL = 1.5;
 
 // Speeds (units/sec)
-const BASE_SPEED = 20;
-const BOOST_MUL = 2;
+const BASE_SPEED    = 20;
+const MAX_SPEED     = 60;     // whichever top‐end you prefer
+const ACCELERATION  = 0.5;      // “units/sec²” – tweak to taste
+const BOOST_MUL     = 2;
 const BOOST_DURATION = 5;
 // ───────────────────────────────────────────────────────────────────────────────
 
@@ -67,7 +69,8 @@ let lastTime = 0;
 let timeSinceLastScore = 0;
 
 let immunityCount = 0;
-let boostActive = false;
+let currentSpeed = BASE_SPEED;
+let boostActive  = false;
 let boostEndTime = 0;
 
 let carSize = 5;
@@ -340,7 +343,8 @@ function onKeyDown(e) {
 
   if (!debugMode) {
     if (gameOver && e.key === 'r') {
-      location.reload();
+      // location.reload();
+      resetGame();
       return;
     }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -411,7 +415,23 @@ function animate(timeMs) {
   let delta = lastTime ? time - lastTime : 0;
   lastTime = time;
 
-  // allow Debug mode unconditionally:
+  // 1) First, ramp currentSpeed upward by ACCELERATION (until MAX_SPEED)
+  currentSpeed += ACCELERATION * delta;
+  if (currentSpeed > MAX_SPEED) currentSpeed = MAX_SPEED;
+
+  // 2) Determine the frame’s actual speed, applying boost if active
+  const effectiveSpeed = boostActive
+    ? currentSpeed * BOOST_MUL
+    : currentSpeed;
+
+  console.log(`DEBUG: currentSpeed = ${currentSpeed.toFixed(2)}, effectiveSpeed = ${effectiveSpeed.toFixed(2)}`);
+
+  // 3) Handle boost timeout
+  if (boostActive && time > boostEndTime) {
+    boostActive = false;
+  }
+
+  // 4) Debug‐mode shortcut (flyaround, no game logic)
   if (debugMode) {
     fpControls.update(delta);
     renderer.render(scene, camera);
@@ -419,21 +439,20 @@ function animate(timeMs) {
     return;
   }
 
-  // rotate the moon itself
+  // 5) Rotate the moon (if you still have that)
   if (moonMesh) {
     moonMesh.rotation.y += delta * 0.05;
   }
 
-  // update our cloud shader’s time uniform
+  // 6) Update any custom shader uniforms (clouds, etc.)
   if (cloudMaterial) {
     cloudMaterial.uniforms.uTime.value = time;
   }
 
-  const GAME_SPEED = boostActive ? BASE_SPEED * BOOST_MUL : BASE_SPEED;
-
+  // 7) If the game is over, stop
   if (gameOver) return;
 
-  // 1) Increment “alive” score 10 points per second
+  // 8) Increment “alive” score 10 points/sec
   timeSinceLastScore += delta;
   if (timeSinceLastScore >= 1) {
     const count = Math.floor(timeSinceLastScore);
@@ -442,10 +461,10 @@ function animate(timeMs) {
     document.getElementById('score').innerText = `Score: ${score}`;
   }
 
-  // 2) Move player (x only)
+  // 9) Move the player left/right
   movePlayer(delta);
 
-  // 3) Dynamic spawn (coins/life/boost) at z = –400
+  // 10) Dynamic spawning (coins/life/boost)
   if (time - lastSpawnTime > SPAWN_INTERVAL) {
     const r = Math.random();
     if (r < 0.05) spawnLife();
@@ -454,37 +473,39 @@ function animate(timeMs) {
     lastSpawnTime = time;
   }
 
-  // 4) Scroll road forward
-  baseMesh.position.z += GAME_SPEED * delta;
+  // 11) Scroll road forward
+  baseMesh.position.z += effectiveSpeed * delta;
   if (baseMesh.position.z > 0) {
     baseMesh.position.z = -ROAD_HALF;
   }
 
-  // 5) Scroll buildings + recycle
+  // 12) Scroll buildings + recycle
   buildings.forEach((bld) => {
-    bld.position.z += GAME_SPEED * delta;
+    bld.position.z += effectiveSpeed * delta;
     if (bld.position.z > 0) {
       bld.position.z = MIN_START_Z;
     }
   });
 
-  // 6) Move cars + recycle + collision
+  // 13) Move cars + recycle + collision
   cars.forEach((cobj, idx) => {
     const c = cobj.mesh;
-    c.position.z += GAME_SPEED * delta;
+    c.position.z += effectiveSpeed * delta;
     if (c.position.z > 0) {
       c.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
     }
+    // collision test: match camera.z vs c.position.z
     if (
-      c.position.z > -1 &&
-      Math.abs(camera.position.x - c.position.x) < 1
+      Math.abs(camera.position.z - c.position.z) < 0.5 &&
+      Math.abs(camera.position.x - c.position.x) < 1.0
     ) {
-        console.log(
-            `DEBUG: car[${idx}] collided → pos (${c.position.x.toFixed(2)}, ${c.position.y.toFixed(2)}, ${c.position.z.toFixed(2)}), camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
-        );
+      console.log(
+        `DEBUG: car[${idx}] collided → pos (${c.position.x.toFixed(2)}, ${c.position.y.toFixed(2)}, ${c.position.z.toFixed(2)}), ` +
+        `camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
+      );
       if (immunityCount > 0) {
         immunityCount--;
-        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
+        document.getElementById('lives').innerText = `Immunity: ${immunityCount}`;
         c.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
       } else {
         console.log('Collision with car!');
@@ -493,27 +514,24 @@ function animate(timeMs) {
     }
   });
 
-  // 7) Move obstacles + recycle + collision
-obstacles.forEach((oobj, idx) => {
+  // 14) Move obstacles + recycle + collision
+  obstacles.forEach((oobj, idx) => {
     const o = oobj.mesh;
-    o.position.z += GAME_SPEED * delta;
-  
+    o.position.z += effectiveSpeed * delta;
     if (o.position.z > 0) {
-      // recycle it
       o.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
     }
-  
-    // collision test:
     if (
-      o.position.z > -1 &&
-      Math.abs(camera.position.x - o.position.x) < 1
+      Math.abs(camera.position.z - o.position.z) < 0.5 &&
+      Math.abs(camera.position.x - o.position.x) < 1.0
     ) {
       console.log(
-        `DEBUG: obstacle[${idx}] collided → pos (${o.position.x.toFixed(2)}, ${o.position.y.toFixed(2)}, ${o.position.z.toFixed(2)}), camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
+        `DEBUG: obstacle[${idx}] collided → pos (${o.position.x.toFixed(2)}, ${o.position.y.toFixed(2)}, ${o.position.z.toFixed(2)}), ` +
+        `camera at (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`
       );
       if (immunityCount > 0) {
         immunityCount--;
-        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
+        document.getElementById('lives').innerText = `Immunity: ${immunityCount}`;
         o.position.z = MIN_START_Z + Math.random() * (MAX_START_Z - MIN_START_Z);
       } else {
         console.log('Collision with obstacle!');
@@ -522,11 +540,11 @@ obstacles.forEach((oobj, idx) => {
     }
   });
 
-  // 8) Move coins/life/boost + collection
+  // 15) Move coins/life/boost + collection
   for (let i = coins.length - 1; i >= 0; i--) {
     const cobj = coins[i];
     const c = cobj.mesh;
-    c.position.z += GAME_SPEED * delta;
+    c.position.z += effectiveSpeed * delta;
     if (c.position.z > 0) {
       scene.remove(c);
       coins.splice(i, 1);
@@ -538,12 +556,12 @@ obstacles.forEach((oobj, idx) => {
     ) {
       if (cobj.type === 'life') {
         immunityCount++;
-        document.getElementById('lives').innerText = `Lives: ${immunityCount}`;
+        document.getElementById('lives').innerText = `Immunity: ${immunityCount}`;
       } else if (cobj.type === 'boost') {
         boostActive = true;
         boostEndTime = time + BOOST_DURATION;
       } else {
-        score += 100;  // +100 points per coin
+        score += 100;
         document.getElementById('score').innerText = `Score: ${score}`;
       }
       scene.remove(c);
@@ -551,12 +569,7 @@ obstacles.forEach((oobj, idx) => {
     }
   }
 
-  // 9) Handle boost timeout
-  if (boostActive && time > boostEndTime) {
-    boostActive = false;
-  }
-
-  // 10) Render
+  // 16) Finally, render & loop
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -566,6 +579,76 @@ function endGame() {
   document.getElementById('gameOver').style.display = 'block';
 }
 
+// Add this function somewhere in main.js:
+function resetGame() {
+  // 1) Hide Game Over overlay
+  document.getElementById('gameOver').style.display = 'none';
+
+  // 2) Reset all state variables
+  score = 0;
+  document.getElementById('score').innerText = `Score: 0`;
+  timeSinceLastScore = 0;
+  lastSpawnTime = performance.now() * 0.001;
+  lastTime = 0;
+
+  immunityCount = 0;
+  boostActive = false;
+  boostEndTime = 0;
+  document.getElementById('lives').innerText = `Lives: 0`;
+
+  currentSpeed = BASE_SPEED;
+
+  gameOver = false;
+
+  // 3) Clear out existing cars, obstacles, coins, buildings, stars
+  cars.forEach(cobj => scene.remove(cobj.mesh));
+  obstacles.forEach(oobj => scene.remove(oobj.mesh));
+  coins.forEach(cobj => scene.remove(cobj.mesh));
+  buildings.forEach(b => scene.remove(b));
+  stars.forEach(s => scene.remove(s));
+
+  cars.length = 0;
+  obstacles.length = 0;
+  coins.length = 0;
+  buildings.length = 0;
+  stars.length = 0;
+
+  // 4) Reset road & baseMesh
+  baseMesh.position.z = -ROAD_HALF;
+
+  // 5) Re‐create buildings along the road
+  for (let i = 0; i < NUM_BUILDING_ROWS; i++) {
+    const zPos = 0 - i * BUILDING_SPACING;
+    const allProtos = [buildingProto1, buildingProto2, buildingProto3];
+
+    const leftProto = allProtos[Math.floor(Math.random() * allProtos.length)];
+    const leftBld = leftProto.clone();
+    leftBld.position.set(-ROAD_TO_BUILDING_DIST, 0, zPos);
+    leftBld.scale.set(buildingSize, buildingSize, buildingSize);
+    leftBld.rotation.y = Math.PI / 2;
+    scene.add(leftBld);
+    buildings.push(leftBld);
+
+    const rightProto = allProtos[Math.floor(Math.random() * allProtos.length)];
+    const rightBld = rightProto.clone();
+    rightBld.position.set(ROAD_TO_BUILDING_DIST, 0, zPos);
+    rightBld.scale.set(buildingSize, buildingSize, buildingSize);
+    rightBld.rotation.y = -Math.PI / 2;
+    scene.add(rightBld);
+    buildings.push(rightBld);
+  }
+
+  // 6) Re‐spawn cars, obstacles, coins exactly as in prespawnObjects()
+  prespawnObjects();
+
+  // 7) Reset camera back to its start position
+  camera.position.set(0, 1.6, 0);
+  camera.lookAt(0, 1.6, -1);
+
+  // 8) Finally, resume the animation loop
+  requestAnimationFrame(animate);
+}
+
 // function main() {
 //   initScene();
 //   loadModels();
@@ -573,12 +656,29 @@ function endGame() {
 
 // main();
 
+// When the user clicks “Start Game” inside the overlay, hide it and begin your Three.js logic:
 document.getElementById('startButton').addEventListener('click', () => {
-    // Hide the overlay
-    document.getElementById('instructionOverlay').style.display = 'none';
-    // initialize lives
-    document.getElementById('lives').innerText = `Immunity: ${immunityCount}`;
-    // Kick off the Three.js initialization + loading
-    initScene();
-    loadModels();
-  });
+  document.getElementById('instructionOverlay').style.display = 'none';
+  // now start your existing initScene() + loadModels() flow
+  initScene();
+  loadModels();
+});
+
+// The “Toggle Instructions” button simply shows/hides the same overlay:
+document.getElementById('toggleInstructionsBtn').addEventListener('click', () => {
+  const overlay = document.getElementById('instructionOverlay');
+  const btn = document.getElementById('toggleInstructionsBtn');
+  if (overlay.style.display === 'none' || overlay.style.display === '') {
+    overlay.style.display = 'flex';
+    btn.innerText = 'Hide Instructions';
+  } else {
+    overlay.style.display = 'none';
+    btn.innerText = 'Show Instructions';
+  }
+});
+
+// If you want the “Toggle Instructions” button to start out as “Show Instructions”
+// (and only change to “Hide Instructions” once the overlay is actually visible), you can initialize it like this:
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('toggleInstructionsBtn').innerText = 'Show Instructions';
+});
